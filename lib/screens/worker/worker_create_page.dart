@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 
 class WorkerCreatePage extends StatefulWidget {
   @override
@@ -17,12 +19,37 @@ class _WorkerCreatePageState extends State<WorkerCreatePage> {
   final motherController = TextEditingController();
   final dobController = TextEditingController();
   final joiningController = TextEditingController();
-  final fingerController = TextEditingController();
+
+  File? _profileImage;
+
+  Map<String, bool> fingerScanStatus = {
+    'Left Thumb': false,
+    'Left Index': false,
+    'Left Middle': false,
+    'Left Ring': false,
+    'Left Little': false,
+    'Right Thumb': false,
+    'Right Index': false,
+    'Right Middle': false,
+    'Right Ring': false,
+    'Right Little': false,
+  };
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      setState(() {
+        _profileImage = File(pickedFile.path);
+      });
+    }
+  }
 
   Future<void> _selectDate(BuildContext context, TextEditingController controller) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime(1990),
+      initialDate: DateTime(2025),
       firstDate: DateTime(1950),
       lastDate: DateTime(2100),
     );
@@ -44,7 +71,10 @@ class _WorkerCreatePageState extends State<WorkerCreatePage> {
         'mother_name': motherController.text.trim(),
         'dob': dobController.text.trim(),
         'joining_date': joiningController.text.trim(),
-        'finger_info': fingerController.text.trim(),
+        'finger_info': fingerScanStatus.entries
+            .where((entry) => entry.value)
+            .map((entry) => entry.key)
+            .join(', '),
       });
     }
   }
@@ -75,6 +105,88 @@ class _WorkerCreatePageState extends State<WorkerCreatePage> {
     );
   }
 
+  Widget _buildFinger(String fingerName) {
+    bool isScanned = fingerScanStatus[fingerName] ?? false;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: ElevatedButton(
+        onPressed: () {
+          setState(() {
+            fingerScanStatus[fingerName] = !isScanned;
+          });
+        },
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size(140, 40),
+          backgroundColor: isScanned ? Colors.green : Colors.grey[300],
+          foregroundColor: isScanned ? Colors.white : Colors.black,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(isScanned ? Icons.fingerprint : Icons.fingerprint_outlined, size: 18),
+            const SizedBox(width: 6),
+            Text(fingerName.split(' ').last),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFingerScanSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Biometric Finger Scan',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Left Hand
+            Column(
+              children: [
+                const Text('Left Hand', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                _buildFinger('Left Thumb'),
+                _buildFinger('Left Index'),
+                _buildFinger('Left Middle'),
+                _buildFinger('Left Ring'),
+                _buildFinger('Left Little'),
+              ],
+            ),
+
+            // Hand Icon (optional visual center)
+            Column(
+              children: const [
+                SizedBox(height: 30),
+                Icon(Icons.pan_tool_alt_rounded, size: 60, color: Colors.grey),
+                SizedBox(height: 10),
+                Icon(Icons.pan_tool_alt_rounded, size: 60, color: Colors.grey),
+              ],
+            ),
+
+            // Right Hand
+            Column(
+              children: [
+                const Text('Right Hand', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                _buildFinger('Right Thumb'),
+                _buildFinger('Right Index'),
+                _buildFinger('Right Middle'),
+                _buildFinger('Right Ring'),
+                _buildFinger('Right Little'),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -96,6 +208,20 @@ class _WorkerCreatePageState extends State<WorkerCreatePage> {
               constraints: const BoxConstraints(maxWidth: 1000),
               child: Column(
                 children: [
+                  GestureDetector(
+                    onTap: _pickImage,
+                    child: CircleAvatar(
+                      radius: 50,
+                      backgroundColor: Colors.grey[300],
+                      backgroundImage: _profileImage != null ? FileImage(_profileImage!) : null,
+                      child: _profileImage == null
+                          ? const Icon(Icons.camera_alt, size: 40, color: Colors.white70)
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Tap to upload profile image'),
+                  const SizedBox(height: 30),
                   Wrap(
                     runSpacing: 20,
                     spacing: 20,
@@ -132,12 +258,10 @@ class _WorkerCreatePageState extends State<WorkerCreatePage> {
                         width: isWide ? 400 : double.infinity,
                         child: _buildDateField('Joining Date', joiningController),
                       ),
-                      SizedBox(
-                        width: isWide ? 400 : double.infinity,
-                        child: _buildInputField('Finger Info', fingerController, Icons.fingerprint),
-                      ),
                     ],
                   ),
+                  const SizedBox(height: 30),
+                  _buildFingerScanSection(),
                   const SizedBox(height: 30),
                   SizedBox(
                     width: double.infinity,

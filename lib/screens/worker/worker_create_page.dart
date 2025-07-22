@@ -35,16 +35,59 @@ class _WorkerCreatePageState extends State<WorkerCreatePage> {
     'Right Little': false,
   };
 
+  // Future<void> _pickImage() async {
+  //   final picker = ImagePicker();
+  //   final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+  //
+  //   if (pickedFile != null) {
+  //     setState(() {
+  //       _profileImage = File(pickedFile.path);
+  //     });
+  //   }
+  // }
+
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
-    if (pickedFile != null) {
-      setState(() {
-        _profileImage = File(pickedFile.path);
-      });
-    }
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('Take Photo'),
+                onTap: () async {
+                  Navigator.pop(context); // close the sheet
+                  final pickedFile = await picker.pickImage(source: ImageSource.camera);
+                  if (pickedFile != null) {
+                    setState(() {
+                      _profileImage = File(pickedFile.path);
+                    });
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from Gallery'),
+                onTap: () async {
+                  Navigator.pop(context); // close the sheet
+                  final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+                  if (pickedFile != null) {
+                    setState(() {
+                      _profileImage = File(pickedFile.path);
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
+
 
   Future<void> _selectDate(BuildContext context, TextEditingController controller) async {
     final DateTime? picked = await showDatePicker(

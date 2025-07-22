@@ -2,6 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart'; // ✅ Needed for Provider
+import '../../models/employee_model.dart';
+import '../../providers/employee_provider.dart';
+
+
 
 class EmployeeCreatePage extends StatefulWidget {
   @override
@@ -35,16 +40,61 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     'Right Little': false,
   };
 
+  // Future<void> _pickImage() async {
+  //   final picker = ImagePicker();
+  //   final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+  //
+  //   if (pickedFile != null) {
+  //     setState(() {
+  //       _profileImage = File(pickedFile.path);
+  //     });
+  //   }
+  // }
+
+
+
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
-    if (pickedFile != null) {
-      setState(() {
-        _profileImage = File(pickedFile.path);
-      });
-    }
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('Take Photo'),
+                onTap: () async {
+                  Navigator.pop(context); // close the sheet
+                  final pickedFile = await picker.pickImage(source: ImageSource.camera);
+                  if (pickedFile != null) {
+                    setState(() {
+                      _profileImage = File(pickedFile.path);
+                    });
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from Gallery'),
+                onTap: () async {
+                  Navigator.pop(context); // close the sheet
+                  final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+                  if (pickedFile != null) {
+                    setState(() {
+                      _profileImage = File(pickedFile.path);
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
+
 
   Future<void> _selectDate(BuildContext context, TextEditingController controller) async {
     final DateTime? picked = await showDatePicker(
@@ -60,25 +110,38 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     }
   }
 
-  void _save() {
+  void _save() async {
     if (_formKey.currentState!.validate()) {
-      Navigator.pop(context, {
-        'profile_image_path': _profileImage?.path,
-        'name': nameController.text.trim(),
-        'email': emailController.text.trim(),
-        'employee_code': codeController.text.trim(),
-        'phone': phoneController.text.trim(),
-        'father_name': fatherController.text.trim(),
-        'mother_name': motherController.text.trim(),
-        'dob': dobController.text.trim(),
-        'joining_date': joiningController.text.trim(),
-        'finger_info': fingerScanStatus.entries
-            .where((entry) => entry.value)
-            .map((entry) => entry.key)
-            .join(', '),
-      });
+      final provider = Provider.of<EmployeeProvider>(context, listen: false);
+
+      final employee = EmployeeModel(
+        name: nameController.text.trim(),
+        email: emailController.text.trim(),
+        employeeNo: codeController.text.trim(),
+        phone: phoneController.text.trim(),
+        fatherName: fatherController.text.trim(),
+        motherName: motherController.text.trim(),
+        dob: dobController.text.trim(),
+        joiningDate: joiningController.text.trim(),
+        employeeType: 1, // default
+        fingerInfo1: fingerScanStatus['Left Thumb']! ? '1' : '',
+        fingerInfo2: fingerScanStatus['Left Index']! ? '1' : '',
+        fingerInfo3: fingerScanStatus['Left Middle']! ? '1' : '',
+        fingerInfo4: fingerScanStatus['Left Ring']! ? '1' : '',
+        fingerInfo5: fingerScanStatus['Left Little']! ? '1' : '',
+        fingerInfo6: fingerScanStatus['Right Thumb']! ? '1' : '',
+        fingerInfo7: fingerScanStatus['Right Index']! ? '1' : '',
+        fingerInfo8: fingerScanStatus['Right Middle']! ? '1' : '',
+        fingerInfo9: fingerScanStatus['Right Ring']! ? '1' : '',
+        fingerInfo10: fingerScanStatus['Right Little']! ? '1' : '',
+        imagePath: _profileImage?.path ?? '',
+      );
+
+      await provider.addEmployee(employee);
+      Navigator.pop(context); // go back to employee_page
     }
   }
+
 
   Widget _buildInputField(String label, TextEditingController controller, IconData icon, {bool isRequired = true}) {
     return TextFormField(

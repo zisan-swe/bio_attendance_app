@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import 'employee_create_page.dart';
 
 class EmployeePage extends StatefulWidget {
+  const EmployeePage({super.key});
+
   @override
   _EmployeePageState createState() => _EmployeePageState();
 }
 
 class _EmployeePageState extends State<EmployeePage> {
   List<Map<String, String>> employees = [
-    {'name': 'Alice Brown', 'employee_id': 'E001'},
+    {'name': 'Alice Brown1', 'employee_id': 'E001'},
     {'name': 'Bob Green', 'employee_id': 'E002'},
   ];
 
@@ -33,29 +35,38 @@ class _EmployeePageState extends State<EmployeePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Employees'),
+        title: const Text('Employee List'),
+        centerTitle: true,
       ),
-      body: employees.isEmpty
-          ? Center(child: Text('No employees added yet.'))
-          : ListView.builder(
-        padding: EdgeInsets.all(16),
-        itemCount: employees.length,
-        itemBuilder: (context, index) {
-          final employee = employees[index];
-          return Card(
-            margin: EdgeInsets.symmetric(vertical: 8),
-            child: ListTile(
-              leading: Icon(Icons.badge),
-              title: Text(employee['name'] ?? ''),
-              subtitle: Text('ID: ${employee['employee_id']}'),
-            ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          if (employees.isEmpty) {
+            return const Center(child: Text('No employees added yet.'));
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: employees.length,
+            itemBuilder: (context, index) {
+              final employee = employees[index];
+              return Card(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 4,
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                child: ListTile(
+                  leading: const Icon(Icons.badge),
+                  title: Text(employee['name'] ?? ''),
+                  subtitle: Text('ID: ${employee['employee_id']}'),
+                ),
+              );
+            },
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: _navigateToCreate,
-        child: Icon(Icons.add),
-        tooltip: 'Create Employee',
+        icon: const Icon(Icons.add),
+        label: const Text('Add Employee'),
       ),
     );
   }

@@ -8,7 +8,7 @@ class EmployeeModel {
   final String motherName;
   final String dob;
   final String joiningDate;
-  final int employeeType; // ✅ correct
+  final int employeeType;
   final String fingerInfo1;
   final String fingerInfo2;
   final String fingerInfo3;
@@ -19,7 +19,6 @@ class EmployeeModel {
   final String fingerInfo8;
   final String fingerInfo9;
   final String fingerInfo10;
-
   final String imagePath;
 
   EmployeeModel({

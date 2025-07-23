@@ -19,6 +19,7 @@ class EmployeeProvider with ChangeNotifier {
 
   // Add new employee and refresh list
   Future<void> addEmployee(EmployeeModel employee) async {
+    print(employee);
     try {
       await DatabaseHelper.instance.insertEmployee(employee);
       await fetchEmployees();

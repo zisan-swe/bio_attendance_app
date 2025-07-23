@@ -9,6 +9,10 @@ import '../../providers/employee_provider.dart';
 
 
 class EmployeeCreatePage extends StatefulWidget {
+  final EmployeeModel? employee; // <-- add this
+
+  const EmployeeCreatePage({Key? key, this.employee}) : super(key: key); // <-- add this
+
   @override
   _EmployeeCreatePageState createState() => _EmployeeCreatePageState();
 }
@@ -138,7 +142,9 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
       );
 
       await provider.addEmployee(employee);
-      Navigator.pop(context); // go back to employee_page
+
+      // ✅ This notifies the previous screen to refresh the list
+      Navigator.pop(context, true);
     }
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'employee_create_page.dart';
 import '../../models/employee_model.dart';
 import '../../db/database_helper.dart';
+import 'employee_edit_page.dart';
 
 class EmployeePage extends StatefulWidget {
   const EmployeePage({super.key});
@@ -116,7 +117,17 @@ class _EmployeePageState extends State<EmployeePage> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.edit, color: Colors.blue),
-                    onPressed: () => _navigateToCreate(employee: emp),
+                    onPressed: () async {
+                      final updated = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => EmployeeEditPage(employee: emp),
+                        ),
+                      );
+                      if (updated == true) {
+                        _loadEmployees(); // Refresh the list
+                      }
+                    },
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
@@ -128,6 +139,7 @@ class _EmployeePageState extends State<EmployeePage> {
           );
         },
       ),
+
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _navigateToCreate(),
         icon: const Icon(Icons.add),

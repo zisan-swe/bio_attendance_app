@@ -96,4 +96,53 @@ class EmployeeModel {
       'image_path': imagePath,
     };
   }
+  // ✅ Added copyWith method
+  EmployeeModel copyWith({
+    int? id,
+    String? name,
+    String? email,
+    String? employeeNo,
+    String? phone,
+    String? fatherName,
+    String? motherName,
+    String? dob,
+    String? joiningDate,
+    int? employeeType,
+    String? fingerInfo1,
+    String? fingerInfo2,
+    String? fingerInfo3,
+    String? fingerInfo4,
+    String? fingerInfo5,
+    String? fingerInfo6,
+    String? fingerInfo7,
+    String? fingerInfo8,
+    String? fingerInfo9,
+    String? fingerInfo10,
+    String? imagePath,
+  }) {
+    return EmployeeModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      employeeNo: employeeNo ?? this.employeeNo,
+      phone: phone ?? this.phone,
+      fatherName: fatherName ?? this.fatherName,
+      motherName: motherName ?? this.motherName,
+      dob: dob ?? this.dob,
+      joiningDate: joiningDate ?? this.joiningDate,
+      employeeType: employeeType ?? this.employeeType,
+      fingerInfo1: fingerInfo1 ?? this.fingerInfo1,
+      fingerInfo2: fingerInfo2 ?? this.fingerInfo2,
+      fingerInfo3: fingerInfo3 ?? this.fingerInfo3,
+      fingerInfo4: fingerInfo4 ?? this.fingerInfo4,
+      fingerInfo5: fingerInfo5 ?? this.fingerInfo5,
+      fingerInfo6: fingerInfo6 ?? this.fingerInfo6,
+      fingerInfo7: fingerInfo7 ?? this.fingerInfo7,
+      fingerInfo8: fingerInfo8 ?? this.fingerInfo8,
+      fingerInfo9: fingerInfo9 ?? this.fingerInfo9,
+      fingerInfo10: fingerInfo10 ?? this.fingerInfo10,
+      imagePath: imagePath ?? this.imagePath,
+    );
+  }
+
 }

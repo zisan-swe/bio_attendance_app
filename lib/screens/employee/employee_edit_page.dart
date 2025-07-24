@@ -21,6 +21,8 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
   late TextEditingController nameController;
   late TextEditingController emailController;
   late TextEditingController codeController;
+  late TextEditingController nidController;
+  late TextEditingController dailyWagesController;
   late TextEditingController phoneController;
   late TextEditingController fatherController;
   late TextEditingController motherController;
@@ -50,6 +52,8 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
     nameController = TextEditingController(text: emp.name);
     emailController = TextEditingController(text: emp.email);
     codeController = TextEditingController(text: emp.employeeNo);
+    nidController = TextEditingController(text: emp.nid);
+    dailyWagesController = TextEditingController(text: emp.dailyWages.toStringAsFixed(2));
     phoneController = TextEditingController(text: emp.phone);
     fatherController = TextEditingController(text: emp.fatherName);
     motherController = TextEditingController(text: emp.motherName);
@@ -114,11 +118,21 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
     if (_formKey.currentState!.validate()) {
       final provider = Provider.of<EmployeeProvider>(context, listen: false);
       final emp = widget.employee;
+      final dailyWages = double.tryParse(dailyWagesController.text.trim());
+
+      if (dailyWages == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid Daily Wages')),
+        );
+        return;
+      }
 
       final updated = emp.copyWith(
         name: nameController.text,
         email: emailController.text,
         employeeNo: codeController.text,
+        nid: nidController.text,
+        dailyWages: dailyWages,
         phone: phoneController.text,
         fatherName: fatherController.text,
         motherName: motherController.text,
@@ -246,6 +260,10 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
               _buildField('Email', emailController, Icons.email, isRequired: false),
               const SizedBox(height: 12),
               _buildField('Employee ID', codeController, Icons.badge),
+              const SizedBox(height: 12),
+              _buildField('Employee NID', nidController, Icons.badge),
+              const SizedBox(height: 12),
+              _buildField('Employee Daily Wages', dailyWagesController, Icons.badge),
               const SizedBox(height: 12),
               _buildField('Phone', phoneController, Icons.phone),
               const SizedBox(height: 12),

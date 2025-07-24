@@ -9,6 +9,9 @@ class DatabaseHelper {
   DatabaseHelper._init();
 
   Future<Database> get database async {
+    // Only for development!
+    // await deleteDatabase(join(await getDatabasesPath(), 'biometric.db'));
+
     if (_database != null) return _database!;
     _database = await _initDB('biometric.db');
     return _database!;
@@ -20,7 +23,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 4, // Increment this if schema changed
+      version: 6, // Increment this if schema changed
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -28,47 +31,37 @@ class DatabaseHelper {
 
   Future _createDB(Database db, int version) async {
     await db.execute('''
-      CREATE TABLE employee (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        email TEXT,
-        employee_no TEXT,
-        phone TEXT,
-        father_name TEXT,
-        mother_name TEXT,
-        dob TEXT,
-        joining_date TEXT,
-        employee_type INTEGER,
-        finger_info1 TEXT,
-        finger_info2 TEXT,
-        finger_info3 TEXT,
-        finger_info4 TEXT,
-        finger_info5 TEXT,
-        finger_info6 TEXT,
-        finger_info7 TEXT,
-        finger_info8 TEXT,
-        finger_info9 TEXT,
-        finger_info10 TEXT,
-        image_path TEXT
-      )
-    ''');
+  CREATE TABLE employee (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    email TEXT,
+    employee_no TEXT,
+    nid TEXT,
+    daily_wages DOUBLE,
+    phone TEXT,
+    father_name TEXT,
+    mother_name TEXT,
+    dob TEXT,
+    joining_date TEXT,
+    employee_type INTEGER,
+    finger_info1 TEXT,
+    finger_info2 TEXT,
+    finger_info3 TEXT,
+    finger_info4 TEXT,
+    finger_info5 TEXT,
+    finger_info6 TEXT,
+    finger_info7 TEXT,
+    finger_info8 TEXT,
+    finger_info9 TEXT,
+    finger_info10 TEXT,
+    image_path TEXT
+  )
+''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 3) {
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS employee_temp AS 
-        SELECT 
-          id, name, email, employee_no, phone, father_name, mother_name, dob, 
-          joining_date, CAST(employee_type AS INTEGER) AS employee_type,
-          finger_info1, finger_info2, finger_info3, finger_info4, finger_info5,
-          finger_info6, finger_info7, finger_info8, finger_info9, finger_info10,
-          image_path
-        FROM employee
-      ''');
-
-      await db.execute('DROP TABLE employee');
-      await db.execute('ALTER TABLE employee_temp RENAME TO employee');
+    if (oldVersion < 5) {
+      await db.execute('ALTER TABLE employee ADD COLUMN phone TEXT');
     }
   }
 

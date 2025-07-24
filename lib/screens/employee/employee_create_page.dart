@@ -23,6 +23,8 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final codeController = TextEditingController();
+  final nidController = TextEditingController();
+  final dailyWagesController = TextEditingController();
   final phoneController = TextEditingController();
   final fatherController = TextEditingController();
   final motherController = TextEditingController();
@@ -118,10 +120,23 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     if (_formKey.currentState!.validate()) {
       final provider = Provider.of<EmployeeProvider>(context, listen: false);
 
+      // Parse dailyWages outside the constructor
+
+      final dailyWages = double.tryParse(dailyWagesController.text.trim());
+
+      if (dailyWages == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid Daily Wages')),
+        );
+        return;
+      }
+
       final employee = EmployeeModel(
         name: nameController.text.trim(),
         email: emailController.text.trim(),
         employeeNo: codeController.text.trim(),
+        nid: nidController.text.trim(),
+        dailyWages: dailyWages,
         phone: phoneController.text.trim(),
         fatherName: fatherController.text.trim(),
         motherName: motherController.text.trim(),
@@ -143,13 +158,14 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
 
       await provider.addEmployee(employee);
 
-      // ✅ This notifies the previous screen to refresh the list
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ Employee Saved Successfully')),
       );
+
       Navigator.pop(context, true);
     }
   }
+
 
 
   Widget _buildInputField(String label, TextEditingController controller, IconData icon, {bool isRequired = true}) {
@@ -313,6 +329,12 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                       SizedBox(
                         width: isWide ? 400 : double.infinity,
                         child: _buildInputField('Employee ID', codeController, Icons.code),
+                      ),SizedBox(
+                        width: isWide ? 400 : double.infinity,
+                        child: _buildInputField('Employee NID', nidController, Icons.badge),
+                      ),SizedBox(
+                        width: isWide ? 400 : double.infinity,
+                        child: _buildInputField('Employee Daily Wages', dailyWagesController, Icons.attach_money),
                       ),
                       SizedBox(
                         width: isWide ? 400 : double.infinity,

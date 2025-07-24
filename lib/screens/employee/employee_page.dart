@@ -55,10 +55,10 @@ class _EmployeePageState extends State<EmployeePage> {
         _profileImages = imageMap;
       });
     } catch (e) {
-      debugPrint("Error loading employees: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to load employees')),
-      );
+      // debugPrint("Error loading employees: $e");
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   const SnackBar(content: Text('No employees records found')),
+      // );
     }
   }
 

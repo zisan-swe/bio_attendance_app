@@ -3,6 +3,8 @@ class EmployeeModel {
   final String name;
   final String email;
   final String employeeNo;
+  final String nid;
+  final double dailyWages;
   final String phone;
   final String fatherName;
   final String motherName;
@@ -26,6 +28,8 @@ class EmployeeModel {
     required this.name,
     required this.email,
     required this.employeeNo,
+    required this.nid,
+    required this.dailyWages,
     required this.phone,
     required this.fatherName,
     required this.motherName,
@@ -51,6 +55,8 @@ class EmployeeModel {
       name: map['name'] ?? '',
       email: map['email'] ?? '',
       employeeNo: map['employee_no'] ?? '',
+      nid: map['nid'] ?? '',
+      dailyWages: map['daily_wages'] ?? '',
       phone: map['phone'] ?? '',
       fatherName: map['father_name'] ?? '',
       motherName: map['mother_name'] ?? '',
@@ -77,6 +83,8 @@ class EmployeeModel {
       'name': name,
       'email': email,
       'employee_no': employeeNo,
+      'nid': nid,
+      'daily_wages': dailyWages,
       'phone': phone,
       'father_name': fatherName,
       'mother_name': motherName,
@@ -102,6 +110,8 @@ class EmployeeModel {
     String? name,
     String? email,
     String? employeeNo,
+    String? nid,
+    double? dailyWages,
     String? phone,
     String? fatherName,
     String? motherName,
@@ -125,6 +135,8 @@ class EmployeeModel {
       name: name ?? this.name,
       email: email ?? this.email,
       employeeNo: employeeNo ?? this.employeeNo,
+      nid: nid ?? this.nid,
+      dailyWages: dailyWages ?? this.dailyWages,
       phone: phone ?? this.phone,
       fatherName: fatherName ?? this.fatherName,
       motherName: motherName ?? this.motherName,

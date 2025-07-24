@@ -42,10 +42,10 @@ class _WorkerPageState extends State<WorkerPage> {
         _profileImages = imageMap;
       });
     } catch (e) {
-      debugPrint("Error loading employees: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to load employees')),
-      );
+      // debugPrint("Error loading employees: $e");
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   const SnackBar(content: Text('Failed to load employees')),
+      // );
     }
   }
 

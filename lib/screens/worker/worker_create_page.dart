@@ -23,6 +23,8 @@ class _WorkerCreatePageState extends State<WorkerCreatePage> {
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final codeController = TextEditingController();
+  final nidController = TextEditingController();
+  final dailyWagesController = TextEditingController();
   final phoneController = TextEditingController();
   final fatherController = TextEditingController();
   final motherController = TextEditingController();
@@ -117,11 +119,21 @@ class _WorkerCreatePageState extends State<WorkerCreatePage> {
   void _save() async {
     if (_formKey.currentState!.validate()) {
       final provider = Provider.of<EmployeeProvider>(context, listen: false);
+      final dailyWages = double.tryParse(dailyWagesController.text.trim());
+
+      if (dailyWages == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid Daily Wages')),
+        );
+        return;
+      }
 
       final employee = EmployeeModel(
         name: nameController.text.trim(),
         email: emailController.text.trim(),
         employeeNo: codeController.text.trim(),
+        nid: nidController.text.trim(),
+        dailyWages: dailyWages,
         phone: phoneController.text.trim(),
         fatherName: fatherController.text.trim(),
         motherName: motherController.text.trim(),
@@ -313,6 +325,13 @@ class _WorkerCreatePageState extends State<WorkerCreatePage> {
                       SizedBox(
                         width: isWide ? 400 : double.infinity,
                         child: _buildInputField('Worker ID', codeController, Icons.code),
+                      ),
+                      SizedBox(
+                        width: isWide ? 400 : double.infinity,
+                        child: _buildInputField('Worker NID', nidController, Icons.badge),
+                      ),SizedBox(
+                        width: isWide ? 400 : double.infinity,
+                        child: _buildInputField('Worker Daily Wages', dailyWagesController, Icons.attach_money),
                       ),
                       SizedBox(
                         width: isWide ? 400 : double.infinity,

@@ -58,6 +58,8 @@ class EmployeeProvider with ChangeNotifier {
         name: '',
         email: '',
         employeeNo: '',
+        nid: '',
+        dailyWages: 0.0,
         phone: '',
         fatherName: '',
         motherName: '',

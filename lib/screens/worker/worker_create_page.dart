@@ -283,6 +283,7 @@ class _WorkerCreatePageState extends State<WorkerCreatePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Create Worker'),
+        backgroundColor: Colors.blueGrey,
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.symmetric(

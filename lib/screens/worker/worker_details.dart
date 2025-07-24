@@ -99,7 +99,10 @@ class WorkerDetailsPage extends StatelessWidget {
     final wide = MediaQuery.of(context).size.width > 600;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Worker Details')),
+      appBar: AppBar(
+        title: const Text('Worker Details'),
+        backgroundColor: Colors.blueGrey,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

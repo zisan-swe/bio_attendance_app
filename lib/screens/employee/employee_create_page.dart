@@ -287,6 +287,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Create Employee'),
+        backgroundColor: Colors.blueGrey,
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.symmetric(

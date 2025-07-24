@@ -121,6 +121,7 @@ class _EmployeePageState extends State<EmployeePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Employee List'),
+        backgroundColor: Colors.blueGrey,
         centerTitle: true,
       ),
       body: employees.isEmpty

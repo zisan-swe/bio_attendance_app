@@ -3,6 +3,7 @@ import 'enroll_screen.dart';
 import 'attendance_screen.dart';
 import 'worker/worker_page.dart';
 import 'employee/employee_page.dart';
+import 'attendance/attendance_page.dart';
 
 
 class HomeScreen extends StatelessWidget {
@@ -74,33 +75,76 @@ class HomeScreen extends StatelessWidget {
             children: [
               SizedBox(height: 40),
               _buildHeader(),
-              _buildButton(
-                context: context,
-                label: 'Worker',
-                icon: Icons.person,
-                destination: WorkerPage(),
-                color: Colors.indigo,
+              // _buildButton(
+              //   context: context,
+              //   label: 'Worker',
+              //   icon: Icons.person,
+              //   destination: WorkerPage(),
+              //   color: Colors.indigo,
+              // ),
+              // _buildButton(
+              //   context: context,
+              //   label: 'Employee',
+              //   icon: Icons.badge,
+              //   destination: EmployeePage(),
+              //   color: Colors.green,
+              // ),
+              // _buildButton(
+              //   context: context,
+              //   label: 'Enroll Worker',
+              //   icon: Icons.fingerprint,
+              //   destination: WorkerPage(),
+              //   color: Colors.orange,
+              // ),
+              // _buildButton(
+              //   context: context,
+              //   label: 'Mark Attendance',
+              //   icon: Icons.check_circle_outline,
+              //   destination: WorkerPage(),
+              //   color: Colors.blueAccent,
+              // ),
+
+              //Same Weight Box
+              SizedBox(
+                width: 250, // Set same width for all buttons
+                child: _buildButton(
+                  context: context,
+                  label: 'Worker',
+                  icon: Icons.person,
+                  destination: WorkerPage(),
+                  color: Colors.indigo,
+                ),
               ),
-              _buildButton(
-                context: context,
-                label: 'Employee',
-                icon: Icons.badge,
-                destination: EmployeePage(),
-                color: Colors.green,
+              SizedBox(
+                width: 250,
+                child: _buildButton(
+                  context: context,
+                  label: 'Employee',
+                  icon: Icons.badge,
+                  destination: EmployeePage(),
+                  color: Colors.green,
+                ),
               ),
-              _buildButton(
-                context: context,
-                label: 'Enroll Worker',
-                icon: Icons.fingerprint,
-                destination: WorkerPage(),
-                color: Colors.orange,
+              SizedBox(
+                width: 250,
+                // height: 70,
+                child: _buildButton(
+                  context: context,
+                  label: 'Enroll Worker',
+                  icon: Icons.fingerprint,
+                  destination: AttendancePage(),
+                  color: Colors.orange,
+                ),
               ),
-              _buildButton(
-                context: context,
-                label: 'Mark Attendance',
-                icon: Icons.check_circle_outline,
-                destination: WorkerPage(),
-                color: Colors.blueAccent,
+              SizedBox(
+                width: 250,
+                child: _buildButton(
+                  context: context,
+                  label: 'Attendance',
+                  icon: Icons.check_circle_outline,
+                  destination: AttendancePage(),
+                  color: Colors.blueAccent,
+                ),
               ),
             ],
           ),

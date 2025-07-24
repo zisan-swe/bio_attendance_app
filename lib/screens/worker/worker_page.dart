@@ -107,6 +107,7 @@ class _WorkerPageState extends State<WorkerPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Worker List'),
+        backgroundColor: Colors.blueGrey,
         centerTitle: true,
       ),
       body: employees.isEmpty

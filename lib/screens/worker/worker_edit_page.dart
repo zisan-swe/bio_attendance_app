@@ -239,7 +239,9 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
     final wide = MediaQuery.of(context).size.width > 600;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Worker')),
+      appBar: AppBar(title: const Text('Edit Worker'),
+        backgroundColor: Colors.blueGrey,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(

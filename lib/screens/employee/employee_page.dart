@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'employee_create_page.dart';
 import '../../models/employee_model.dart';
 import '../../db/database_helper.dart';
 import 'employee_edit_page.dart';
+import 'employee_details.dart';
 
 class EmployeePage extends StatefulWidget {
   const EmployeePage({super.key});
@@ -14,17 +16,43 @@ class EmployeePage extends StatefulWidget {
 class _EmployeePageState extends State<EmployeePage> {
   List<EmployeeModel> employees = [];
 
+  Map<int, File> _profileImages = { };
+
   @override
   void initState() {
     super.initState();
     _loadEmployees();
   }
 
+  // Future<void> _loadEmployees() async {
+  //   try {
+  //     final data = await DatabaseHelper.instance.getAllEmployees();
+  //     setState(() {
+  //       employees = data;
+  //     });
+  //   } catch (e) {
+  //     debugPrint("Error loading employees: $e");
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(content: Text('Failed to load employees')),
+  //     );
+  //   }
+  // }
+
   Future<void> _loadEmployees() async {
     try {
       final data = await DatabaseHelper.instance.getAllEmployees();
+
+      // Build the profileImages map using stored image paths
+      Map<int, File> imageMap = {};
+      for (var emp in data) {
+        if (emp.imagePath.isNotEmpty) {
+          imageMap[emp.id!] = File(emp.imagePath);
+        }
+      }
+
       setState(() {
         employees = data;
+        _profileImages = imageMap;
       });
     } catch (e) {
       debugPrint("Error loading employees: $e");
@@ -33,6 +61,7 @@ class _EmployeePageState extends State<EmployeePage> {
       );
     }
   }
+
 
   void _navigateToCreate({EmployeeModel? employee}) async {
     final result = await Navigator.push(
@@ -108,7 +137,24 @@ class _EmployeePageState extends State<EmployeePage> {
             elevation: 4,
             margin: const EdgeInsets.symmetric(vertical: 8),
             child: ListTile(
-              leading: const Icon(Icons.person_outline_outlined),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EmployeeDetailsPage(employee: emp),
+                  ),
+                );
+              },
+              leading: CircleAvatar(
+                radius: 30,
+                backgroundImage: _profileImages[emp.id] != null
+                    ? FileImage(_profileImages[emp.id]!)
+                    : null,
+                backgroundColor: Colors.grey[300],
+                child: _profileImages[emp.id] == null
+                    ? const Icon(Icons.person)
+                    : null,
+              ),
               title: Text(emp.name),
               subtitle: Text(
                   'ID: ${emp.id} • Type: ${emp.employeeType == 1 ? 'Employee' : 'Worker'}'),
@@ -136,6 +182,7 @@ class _EmployeePageState extends State<EmployeePage> {
                 ],
               ),
             ),
+
           );
         },
       ),

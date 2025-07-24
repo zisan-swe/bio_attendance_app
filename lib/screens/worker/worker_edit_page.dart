@@ -6,16 +6,16 @@ import 'package:provider/provider.dart';
 import '../../models/employee_model.dart';
 import '../../providers/employee_provider.dart';
 
-class EmployeeEditPage extends StatefulWidget {
+class WorkerEditPage extends StatefulWidget {
   final EmployeeModel employee;
 
-  const EmployeeEditPage({Key? key, required this.employee}) : super(key: key);
+  const WorkerEditPage({Key? key, required this.employee}) : super(key: key);
 
   @override
-  State<EmployeeEditPage> createState() => _EmployeeEditPageState();
+  State<WorkerEditPage> createState() => _WorkerEditPageState();
 }
 
-class _EmployeeEditPageState extends State<EmployeeEditPage> {
+class _WorkerEditPageState extends State<WorkerEditPage> {
   final _formKey = GlobalKey<FormState>();
 
   late TextEditingController nameController;
@@ -139,7 +139,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
 
       await provider.updateEmployee(updated);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Employee Updated Successfully')),
+        const SnackBar(content: Text('✅ Worker Updated Successfully')),
       );
       Navigator.pop(context, true);
     }
@@ -224,7 +224,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
     final wide = MediaQuery.of(context).size.width > 600;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Employee')),
+      appBar: AppBar(title: const Text('Edit Worker')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -241,11 +241,11 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              _buildField('Employee Name', nameController, Icons.person),
+              _buildField('Worker Name', nameController, Icons.person),
               const SizedBox(height: 12),
               _buildField('Email', emailController, Icons.email, isRequired: false),
               const SizedBox(height: 12),
-              _buildField('Employee ID', codeController, Icons.badge),
+              _buildField('Worker ID', codeController, Icons.badge),
               const SizedBox(height: 12),
               _buildField('Phone', phoneController, Icons.phone),
               const SizedBox(height: 12),
@@ -264,7 +264,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
                 child: ElevatedButton.icon(
                   onPressed: _updateEmployee,
                   icon: const Icon(Icons.update),
-                  label: const Text('Update Employee'),
+                  label: const Text('Update Worker'),
                 ),
               )
             ],

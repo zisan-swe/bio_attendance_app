@@ -2,8 +2,17 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart'; // ✅ Needed for Provider
+import '../../models/employee_model.dart';
+import '../../providers/employee_provider.dart';
+
+
 
 class WorkerCreatePage extends StatefulWidget {
+  final EmployeeModel? employee; // <-- add this
+
+  const WorkerCreatePage({Key? key, this.employee}) : super(key: key); // <-- add this
+
   @override
   _WorkerCreatePageState createState() => _WorkerCreatePageState();
 }
@@ -45,6 +54,8 @@ class _WorkerCreatePageState extends State<WorkerCreatePage> {
   //     });
   //   }
   // }
+
+
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
@@ -103,26 +114,45 @@ class _WorkerCreatePageState extends State<WorkerCreatePage> {
     }
   }
 
-  void _save() {
+  void _save() async {
     if (_formKey.currentState!.validate()) {
-      Navigator.pop(context, {
-        'name': nameController.text.trim(),
-        'email': emailController.text.trim(),
-        'worker_code': codeController.text.trim(),
-        'phone': phoneController.text.trim(),
-        'father_name': fatherController.text.trim(),
-        'mother_name': motherController.text.trim(),
-        'dob': dobController.text.trim(),
-        'joining_date': joiningController.text.trim(),
-        'finger_info': fingerScanStatus.entries
-            .where((entry) => entry.value)
-            .map((entry) => entry.key)
-            .join(', '),
-      });
+      final provider = Provider.of<EmployeeProvider>(context, listen: false);
+
+      final employee = EmployeeModel(
+        name: nameController.text.trim(),
+        email: emailController.text.trim(),
+        employeeNo: codeController.text.trim(),
+        phone: phoneController.text.trim(),
+        fatherName: fatherController.text.trim(),
+        motherName: motherController.text.trim(),
+        dob: dobController.text.trim(),
+        joiningDate: joiningController.text.trim(),
+        employeeType: 1, // default
+        fingerInfo1: fingerScanStatus['Left Thumb']! ? '1' : '',
+        fingerInfo2: fingerScanStatus['Left Index']! ? '1' : '',
+        fingerInfo3: fingerScanStatus['Left Middle']! ? '1' : '',
+        fingerInfo4: fingerScanStatus['Left Ring']! ? '1' : '',
+        fingerInfo5: fingerScanStatus['Left Little']! ? '1' : '',
+        fingerInfo6: fingerScanStatus['Right Thumb']! ? '1' : '',
+        fingerInfo7: fingerScanStatus['Right Index']! ? '1' : '',
+        fingerInfo8: fingerScanStatus['Right Middle']! ? '1' : '',
+        fingerInfo9: fingerScanStatus['Right Ring']! ? '1' : '',
+        fingerInfo10: fingerScanStatus['Right Little']! ? '1' : '',
+        imagePath: _profileImage?.path ?? '',
+      );
+
+      await provider.addEmployee(employee);
+
+      // ✅ This notifies the previous screen to refresh the list
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Worker Saved Successfully')),
+      );
+      Navigator.pop(context, true);
     }
   }
 
-  Widget _buildInputField(String label, TextEditingController controller, IconData icon) {
+
+  Widget _buildInputField(String label, TextEditingController controller, IconData icon, {bool isRequired = true}) {
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(
@@ -130,7 +160,10 @@ class _WorkerCreatePageState extends State<WorkerCreatePage> {
         prefixIcon: Icon(icon),
         border: const OutlineInputBorder(),
       ),
-      validator: (val) => val == null || val.trim().isEmpty ? 'Enter $label' : null,
+      validator: (val) {
+        if (!isRequired) return null;
+        return val == null || val.trim().isEmpty ? 'Enter $label' : null;
+      },
     );
   }
 
@@ -275,7 +308,7 @@ class _WorkerCreatePageState extends State<WorkerCreatePage> {
                       ),
                       SizedBox(
                         width: isWide ? 400 : double.infinity,
-                        child: _buildInputField('Worker Email', emailController, Icons.email),
+                        child: _buildInputField('Worker Email', emailController, Icons.email, isRequired: false),
                       ),
                       SizedBox(
                         width: isWide ? 400 : double.infinity,

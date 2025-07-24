@@ -144,6 +144,9 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
       await provider.addEmployee(employee);
 
       // ✅ This notifies the previous screen to refresh the list
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Employee Saved Successfully')),
+      );
       Navigator.pop(context, true);
     }
   }

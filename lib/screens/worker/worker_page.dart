@@ -144,7 +144,7 @@ class _WorkerPageState extends State<WorkerPage> {
                 ),
                 title: Text(emp.name),
                 subtitle: Text(
-                    'ID: ${emp.id} • Type: ${emp.employeeType == 1 ? 'Employee' : 'Worker'}'),
+                    'ID: ${emp.id} • Type: ${emp.employeeType == 2 ? 'Employee' : 'Worker'}'),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

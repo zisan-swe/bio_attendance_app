@@ -4,12 +4,15 @@ import 'db/database_helper.dart';
 import 'providers/auth_provider.dart';
 import 'providers/employee_provider.dart';
 import 'screens/login_screen.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize database helper
   final dbHelper = DatabaseHelper.instance;
+  tz.initializeTimeZones(); // Initialize timezones
 
   try {
     // Verify database connection

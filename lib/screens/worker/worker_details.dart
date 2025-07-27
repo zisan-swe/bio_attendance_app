@@ -44,54 +44,54 @@ class WorkerDetailsPage extends StatelessWidget {
     );
   }
 
-  // Widget _buildBiometricSection(EmployeeModel emp) {
-  //   final fingerValues = [
-  //     emp.fingerInfo1, emp.fingerInfo2, emp.fingerInfo3, emp.fingerInfo4, emp.fingerInfo5,
-  //     emp.fingerInfo6, emp.fingerInfo7, emp.fingerInfo8, emp.fingerInfo9, emp.fingerInfo10,
-  //   ];
-  //
-  //   final fingerNames = [
-  //     'Left Thumb', 'Left Index', 'Left Middle', 'Left Ring', 'Left Little',
-  //     'Right Thumb', 'Right Index', 'Right Middle', 'Right Ring', 'Right Little',
-  //   ];
-  //
-  //   final Map<String, bool> fingerScanStatus = {
-  //     for (int i = 0; i < fingerNames.length; i++) fingerNames[i]: fingerValues[i].isNotEmpty
-  //   };
-  //
-  //   return Column(
-  //     crossAxisAlignment: CrossAxisAlignment.start,
-  //     children: [
-  //       const Text('Biometric Fingers', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-  //       const SizedBox(height: 10),
-  //       Row(
-  //         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-  //         children: [
-  //           Column(
-  //             children: [
-  //               const Text('Left Hand'),
-  //               _buildFingerStatus('Left Thumb', fingerScanStatus['Left Thumb']!),
-  //               _buildFingerStatus('Left Index', fingerScanStatus['Left Index']!),
-  //               _buildFingerStatus('Left Middle', fingerScanStatus['Left Middle']!),
-  //               _buildFingerStatus('Left Ring', fingerScanStatus['Left Ring']!),
-  //               _buildFingerStatus('Left Little', fingerScanStatus['Left Little']!),
-  //             ],
-  //           ),
-  //           Column(
-  //             children: [
-  //               const Text('Right Hand'),
-  //               _buildFingerStatus('Right Thumb', fingerScanStatus['Right Thumb']!),
-  //               _buildFingerStatus('Right Index', fingerScanStatus['Right Index']!),
-  //               _buildFingerStatus('Right Middle', fingerScanStatus['Right Middle']!),
-  //               _buildFingerStatus('Right Ring', fingerScanStatus['Right Ring']!),
-  //               _buildFingerStatus('Right Little', fingerScanStatus['Right Little']!),
-  //             ],
-  //           ),
-  //         ],
-  //       )
-  //     ],
-  //   );
-  // }
+  Widget _buildBiometricSection(EmployeeModel emp) {
+    final fingerValues = [
+      emp.fingerInfo1, emp.fingerInfo2, emp.fingerInfo3, emp.fingerInfo4, emp.fingerInfo5,
+      emp.fingerInfo6, emp.fingerInfo7, emp.fingerInfo8, emp.fingerInfo9, emp.fingerInfo10,
+    ];
+
+    final fingerNames = [
+      'Left Thumb', 'Left Index', 'Left Middle', 'Left Ring', 'Left Little',
+      'Right Thumb', 'Right Index', 'Right Middle', 'Right Ring', 'Right Little',
+    ];
+
+    final Map<String, bool> fingerScanStatus = {
+      for (int i = 0; i < fingerNames.length; i++) fingerNames[i]: fingerValues[i].isNotEmpty
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Biometric Fingers', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Column(
+              children: [
+                const Text('Left Hand'),
+                _buildFingerStatus('Left Thumb', fingerScanStatus['Left Thumb']!),
+                _buildFingerStatus('Left Index', fingerScanStatus['Left Index']!),
+                _buildFingerStatus('Left Middle', fingerScanStatus['Left Middle']!),
+                _buildFingerStatus('Left Ring', fingerScanStatus['Left Ring']!),
+                _buildFingerStatus('Left Little', fingerScanStatus['Left Little']!),
+              ],
+            ),
+            Column(
+              children: [
+                const Text('Right Hand'),
+                _buildFingerStatus('Right Thumb', fingerScanStatus['Right Thumb']!),
+                _buildFingerStatus('Right Index', fingerScanStatus['Right Index']!),
+                _buildFingerStatus('Right Middle', fingerScanStatus['Right Middle']!),
+                _buildFingerStatus('Right Ring', fingerScanStatus['Right Ring']!),
+                _buildFingerStatus('Right Little', fingerScanStatus['Right Little']!),
+              ],
+            ),
+          ],
+        )
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -134,7 +134,9 @@ class WorkerDetailsPage extends StatelessWidget {
             const SizedBox(height: 12),
             _buildReadOnlyDate('Joining Date', emp.joiningDate),
             const SizedBox(height: 20),
-            // _buildBiometricSection(emp),
+            _buildReadOnlyDate('Finger Data', emp.fingerInfo1),
+            const SizedBox(height: 20),
+            _buildBiometricSection(emp),
           ],
         ),
       ),

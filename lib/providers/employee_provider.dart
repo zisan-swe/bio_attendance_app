@@ -84,6 +84,50 @@ class EmployeeProvider with ChangeNotifier {
     }
   }
 
+  // Get employee by employee number
+  Future<EmployeeModel?> getEmployeeByNumber(dynamic  employeeNo) async {
+    try {
+      // First check in the local list
+      final existing = _employees.firstWhere(
+            (e) => e.employeeNo == employeeNo,
+        orElse: () => EmployeeModel(
+          id: 0,
+          name: '',
+          email: '',
+          employeeNo: '',
+          nid: '',
+          dailyWages: 0.0,
+          phone: '',
+          fatherName: '',
+          motherName: '',
+          dob: '',
+          joiningDate: '',
+          employeeType: 1,
+          fingerInfo1: '',
+          fingerInfo2: '',
+          fingerInfo3: '',
+          fingerInfo4: '',
+          fingerInfo5: '',
+          fingerInfo6: '',
+          fingerInfo7: '',
+          fingerInfo8: '',
+          fingerInfo9: '',
+          fingerInfo10: '',
+          imagePath: '',
+        ),
+      );
+
+      // If not found locally, try querying the database directly
+      if (existing.id == 0) {
+        return await DatabaseHelper.instance.getEmployeeByNumber(employeeNo);
+      }
+      return existing;
+    } catch (e) {
+      debugPrint('Error getting employee by number: $e');
+      return null;
+    }
+  }
+
   // Optional: Clear employee list (for logout or app reset)
   void clearEmployees() {
     _employees.clear();

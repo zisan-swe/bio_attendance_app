@@ -1,9 +1,11 @@
+import 'package:flutter/cupertino.dart';
 import 'package:sqflite/sqflite.dart';
 import '../db/database_helper.dart';
 import '../models/attendance_model.dart';
 
-class AttendanceProvider {
+class AttendanceProvider with ChangeNotifier{
   final dbHelper = DatabaseHelper.instance;
+
 
   /// Insert new attendance record
   Future<int> insertAttendance(AttendanceModel attendance) async {

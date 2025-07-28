@@ -6,6 +6,7 @@ import 'providers/employee_provider.dart';
 import 'screens/login_screen.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'providers/attendance_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,8 +27,11 @@ void main() async {
         providers: [
           ChangeNotifierProvider(create: (_) => AuthProvider()),
           ChangeNotifierProvider(create: (_) => EmployeeProvider()),
+          ChangeNotifierProvider<AttendanceProvider>(
+            create: (_) => AttendanceProvider(),
+          ),
         ],
-        child:  MyApp(),
+        child: MyApp(),
       ),
     );
   } catch (e) {
@@ -50,7 +54,8 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Biometric Attendance App',
-      theme: ThemeData(primarySwatch: Colors.blue),
+      theme: ThemeData(primarySwatch: Colors.blueGrey),
+      darkTheme: ThemeData(primarySwatch: Colors.indigo),
       home: LoginScreen(),
       debugShowCheckedModeBanner: false,
     );

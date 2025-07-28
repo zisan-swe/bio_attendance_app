@@ -23,7 +23,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 7, // Updated version
+      version: 8, // Updated version
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -64,7 +64,7 @@ class DatabaseHelper {
         device_id TEXT,
         project_id INTEGER,
         block_id INTEGER,
-        employee_no INTEGER,
+        employee_no TEXT,
         working_date TEXT,
         attendance_data TEXT,
         check_in_location TEXT,
@@ -74,7 +74,7 @@ class DatabaseHelper {
         status INTEGER,
         remarks TEXT,
         create_at TEXT,
-        update_ad TEXT
+        update_at TEXT
       )
     ''');
   }

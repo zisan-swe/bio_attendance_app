@@ -109,6 +109,8 @@ class _WorkerPageState extends State<WorkerPage> {
         title: const Text('Worker List'),
         backgroundColor: Colors.blueGrey,
         centerTitle: true,
+        toolbarOpacity: 1,
+        elevation: 100,
       ),
       body: employees.isEmpty
           ? const Center(child: Text('No Workers added yet.'))

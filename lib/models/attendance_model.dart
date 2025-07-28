@@ -6,10 +6,10 @@ class AttendanceModel {
   final int employeeNo;
   final String workingDate;
   final String attendanceData;
-  final String checkInLocation;
+  final String? checkInLocation;
   final String inTime;
   final String outTime;
-  final String checkOutLocation;
+  final String? checkOutLocation;
   final int status;
   final String remarks;
   final String createAt;

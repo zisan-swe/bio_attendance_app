@@ -1,11 +1,10 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 import '../db/database_helper.dart';
 import '../models/attendance_model.dart';
 
-class AttendanceProvider with ChangeNotifier{
+class AttendanceProvider with ChangeNotifier {
   final dbHelper = DatabaseHelper.instance;
-
 
   /// Insert new attendance record
   Future<int> insertAttendance(AttendanceModel attendance) async {
@@ -20,7 +19,7 @@ class AttendanceProvider with ChangeNotifier{
     return result.map((map) => AttendanceModel.fromMap(map)).toList();
   }
 
-  /// Fetch attendance records by working date
+  /// Fetch attendance records by date
   Future<List<AttendanceModel>> getAttendanceByDate(String date) async {
     final db = await dbHelper.database;
     final result = await db.query(
@@ -31,7 +30,7 @@ class AttendanceProvider with ChangeNotifier{
     return result.map((map) => AttendanceModel.fromMap(map)).toList();
   }
 
-  /// Fetch attendance by employee number
+  /// Fetch attendance records by employee number
   Future<List<AttendanceModel>> getAttendanceByEmployeeNo(int employeeNo) async {
     final db = await dbHelper.database;
     final result = await db.query(
@@ -42,7 +41,7 @@ class AttendanceProvider with ChangeNotifier{
     return result.map((map) => AttendanceModel.fromMap(map)).toList();
   }
 
-  /// Update an existing attendance record
+  /// Update an attendance record by ID
   Future<int> updateAttendance(AttendanceModel attendance) async {
     final db = await dbHelper.database;
     return await db.update(
@@ -53,7 +52,7 @@ class AttendanceProvider with ChangeNotifier{
     );
   }
 
-  /// Delete attendance by ID
+  /// Delete attendance record by ID
   Future<int> deleteAttendance(int id) async {
     final db = await dbHelper.database;
     return await db.delete(
@@ -63,9 +62,15 @@ class AttendanceProvider with ChangeNotifier{
     );
   }
 
-  /// Clear all attendance records (use with caution!)
+  /// Clear all attendance records (⚠️ Use with caution)
   Future<int> clearAllAttendance() async {
     final db = await dbHelper.database;
     return await db.delete('attendance');
+  }
+
+  /// Example placeholder for enrolled fingerprint retrieval
+  Future<List<String>> getEnrolledFingerprints({required int employeeNo}) async {
+    // In real scenario: Query DB or API to fetch fingerprints
+    return ['Left Thumb', 'Right Index']; // Dummy data
   }
 }

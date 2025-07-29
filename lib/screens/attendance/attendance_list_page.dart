@@ -149,7 +149,7 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
                         leading: CircleAvatar(
                           backgroundColor: _getStatusColor(attendance.status),
                           child: Icon(
-                            _getActionIcon(attendance.attendanceData),
+                            _getActionIcon(attendance.attendanceStatus),
                             color: Colors.white,
                           ),
                         ),
@@ -161,17 +161,17 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${attendance.attendanceData} - ${_dateFormat.format(DateTime.parse(attendance.workingDate))}',
+                              '${attendance.attendanceStatus} - ${_dateFormat.format(DateTime.parse(attendance.workingDate))}',
                             ),
-                            if (attendance.inTime?.isNotEmpty ?? false)
+                            if (attendance.inTime.isNotEmpty)
                               Text('In: ${_timeFormat.format(DateTime.parse('2023-01-01 ${attendance.inTime}'))}'),
-                            if (attendance.outTime?.isNotEmpty ?? false)
+                            if (attendance.outTime.isNotEmpty)
                               Text('Out: ${_timeFormat.format(DateTime.parse('2023-01-01 ${attendance.outTime}'))}'),
-                            if ((attendance.checkInLocation?.isNotEmpty ?? false) ||
-                                (attendance.checkOutLocation?.isNotEmpty ?? false))
-                              Text('Location: ${attendance.checkInLocation ?? attendance.checkOutLocation}'),
+                            if (attendance.location?.isNotEmpty ?? false)
+                              Text('Location: ${attendance.location}'),
                             if (employee != null) _buildFingerprintStatus(employee),
-                          ],
+                          ]
+                          ,
                         ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {

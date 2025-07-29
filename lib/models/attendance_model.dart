@@ -3,17 +3,17 @@ class AttendanceModel {
   final String deviceId;
   final int projectId;
   final int blockId;
-  final int employeeNo;
+  final String employeeNo;
   final String workingDate;
-  final String attendanceData;
-  final String? checkInLocation;
+  final String attendanceStatus;
+  // final String? checkInLocation;
   final String inTime;
   final String outTime;
-  final String? checkOutLocation;
+  final String? location;
   final int status;
   final String remarks;
   final String createAt;
-  final String updateAd;
+  final String updateAt;
 
   AttendanceModel({
     this.id,
@@ -22,15 +22,15 @@ class AttendanceModel {
     required this.blockId,
     required this.employeeNo,
     required this.workingDate,
-    required this.attendanceData,
-    required this.checkInLocation,
+    required this.attendanceStatus,
+    // required this.checkInLocation,
     required this.inTime,
     required this.outTime,
-    required this.checkOutLocation,
+    required this.location,
     required this.status,
     required this.remarks,
     required this.createAt,
-    required this.updateAd,
+    required this.updateAt,
   });
 
   Map<String, dynamic> toMap() {
@@ -41,15 +41,15 @@ class AttendanceModel {
       'block_id': blockId,
       'employee_no': employeeNo,
       'working_date': workingDate,
-      'attendance_data': attendanceData,
-      'check_in_location': checkInLocation,
+      'attendance_status': attendanceStatus,
+      // 'check_in_location': checkInLocation,
       'in_time': inTime,
       'out_time': outTime,
-      'check_out_location': checkOutLocation,
+      'location': location,
       'status': status,
       'remarks': remarks,
       'create_at': createAt,
-      'update_ad': updateAd,
+      'update_at': updateAt,
     };
   }
 
@@ -61,15 +61,15 @@ class AttendanceModel {
       blockId: map['block_id'],
       employeeNo: map['employee_no'],
       workingDate: map['working_date'],
-      attendanceData: map['attendance_data'],
-      checkInLocation: map['check_in_location'],
+      attendanceStatus: map['attendance_status'],
+      // checkInLocation: map['check_in_location'],
       inTime: map['in_time'],
       outTime: map['out_time'],
-      checkOutLocation: map['check_out_location'],
+      location: map['location'],
       status: map['status'],
       remarks: map['remarks'],
       createAt: map['create_at'],
-      updateAd: map['update_ad'],
+      updateAt: map['update_at'],
     );
   }
 }

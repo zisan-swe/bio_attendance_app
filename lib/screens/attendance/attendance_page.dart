@@ -59,9 +59,6 @@ class _AttendancePageState extends State<AttendancePage> {
   Future<void> _storeAttendance() async {
     final hasAtLeastOneScan = fingerScanStatus.values.any((v) => v == true);
 
-    // final leftThumbData = staticFingerprintData['Left Thumb'];
-    // print('Static fingerprint data for Left Thumb: $leftThumbData');
-
     if (!hasAtLeastOneScan) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -84,17 +81,16 @@ class _AttendancePageState extends State<AttendancePage> {
       deviceId: 'Device001',
       projectId: 1,
       blockId: 1,
-      employeeNo: 101,
+      employeeNo: '101',
       workingDate: date,
-      attendanceData: selectedAction,
-      checkInLocation: selectedAction == 'Check In' || selectedAction == 'Break In' ? safeLocation : '',
-      inTime: selectedAction == 'Check In' || selectedAction == 'Break In' ? time : '',
-      outTime: selectedAction == 'Check Out' || selectedAction == 'Break Out' ? time : '',
-      checkOutLocation: selectedAction == 'Check Out' || selectedAction == 'Break Out' ? safeLocation : '',
+      attendanceStatus: selectedAction,
+      inTime: (selectedAction == 'Check In' || selectedAction == 'Break In') ? time : '',
+      outTime: (selectedAction == 'Check Out' || selectedAction == 'Break Out') ? time : '',
+      location: safeLocation, // unified location field
       status: 1,
       remarks: '',
       createAt: now.toIso8601String(),
-      updateAd: now.toIso8601String(),
+      updateAt: now.toIso8601String(),
     );
 
     await AttendanceProvider().insertAttendance(attendance);

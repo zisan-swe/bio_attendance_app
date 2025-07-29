@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/employee_model.dart';
+import '../models/attendance_model.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -9,10 +10,11 @@ class DatabaseHelper {
   DatabaseHelper._init();
 
   Future<Database> get database async {
-    // Only for development!
+    if (_database != null && _database!.isOpen) return _database!;
+
+    // Don't delete database every time — only during development if you want.
     // await deleteDatabase(join(await getDatabasesPath(), 'biometric.db'));
 
-    if (_database != null) return _database!;
     _database = await _initDB('biometric.db');
     return _database!;
   }
@@ -23,13 +25,14 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 8, // Updated version
+      version: 9,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
   }
 
   Future _createDB(Database db, int version) async {
+    // Employee table
     await db.execute('''
       CREATE TABLE employee (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,6 +61,7 @@ class DatabaseHelper {
       )
     ''');
 
+    // Attendance table
     await db.execute('''
       CREATE TABLE attendance (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,46 +70,44 @@ class DatabaseHelper {
         block_id INTEGER,
         employee_no TEXT,
         working_date TEXT,
-        attendance_data TEXT,
-        check_in_location TEXT,
+        attendance_status TEXT,
         in_time TEXT,
         out_time TEXT,
-        check_out_location TEXT,
+        location TEXT,          -- renamed from check_out_location to location
         status INTEGER,
         remarks TEXT,
         create_at TEXT,
-        update_at TEXT
+        update_at TEXT          -- fixed typo from update_ad to update_at
       )
     ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 5) {
-      await db.execute('ALTER TABLE employee ADD COLUMN phone TEXT');
-    }
-
-    if (oldVersion < 7) {
+    if (oldVersion < 8) {
+      // WARNING: Drops attendance table, only do this if you are sure to lose old data
+      await db.execute('DROP TABLE IF EXISTS attendance');
       await db.execute('''
         CREATE TABLE attendance (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           device_id TEXT,
           project_id INTEGER,
           block_id INTEGER,
-          employee_no INTEGER,
+          employee_no TEXT,
           working_date TEXT,
-          attendance_data TEXT,
-          check_in_location TEXT,
+          attendance_status TEXT,
           in_time TEXT,
           out_time TEXT,
-          check_out_location TEXT,
+          location TEXT,
           status INTEGER,
           remarks TEXT,
           create_at TEXT,
-          update_ad TEXT
+          update_at TEXT
         )
       ''');
     }
   }
+
+  // Employee CRUD operations
 
   Future<int> insertEmployee(EmployeeModel employee) async {
     final db = await instance.database;
@@ -141,8 +143,28 @@ class DatabaseHelper {
     );
   }
 
-  Future close() async {
+  Future<EmployeeModel?> getEmployeeByNumber(dynamic employeeNo) async {
     final db = await instance.database;
-    db.close();
+    final result = await db.query(
+      'employee',
+      where: 'employee_no = ?',
+      whereArgs: [employeeNo],
+      limit: 1,
+    );
+    return result.isNotEmpty ? EmployeeModel.fromMap(result.first) : null;
+  }
+
+  // Attendance CRUD
+
+  Future<int> insertAttendance(AttendanceModel attendance) async {
+    final db = await instance.database;
+    return await db.insert('attendance', attendance.toMap());
+  }
+
+  Future close() async {
+    if (_database != null && _database!.isOpen) {
+      await _database!.close();
+      _database = null;
+    }
   }
 }

@@ -114,15 +114,26 @@ class DatabaseHelper {
     return await db.insert('employee', employee.toMap());
   }
 
-  Future<List<EmployeeModel>> getAllEmployees() async {
+  // Future<List<EmployeeModel>> getAllEmployees() async {
+  //   final db = await instance.database;
+  //   final result = await db.query(
+  //     'employee',
+  //     where: 'employee_type = ?',
+  //     whereArgs: [1],
+  //   );
+  //   return result.map((e) => EmployeeModel.fromMap(e)).toList();
+  // }
+
+  Future<List<EmployeeModel>> getAllEmployees({required int employeeType}) async {
     final db = await instance.database;
     final result = await db.query(
       'employee',
       where: 'employee_type = ?',
-      whereArgs: [1],
+      whereArgs: [employeeType],
     );
     return result.map((e) => EmployeeModel.fromMap(e)).toList();
   }
+
 
   Future<int> updateEmployee(EmployeeModel employee) async {
     final db = await instance.database;

@@ -22,12 +22,12 @@ class _WorkerPageState extends State<WorkerPage> {
   @override
   void initState() {
     super.initState();
-    _loadEmployees();
+    _loadEmployees(2);
   }
 
-  Future<void> _loadEmployees() async {
+  Future<void> _loadEmployees(int employeeType) async {
     try {
-      final data = await DatabaseHelper.instance.getAllEmployees();
+      final data = await DatabaseHelper.instance.getAllEmployees(employeeType: employeeType);
 
       // Build the profileImages map using stored image paths
       Map<int, File> imageMap = {};
@@ -42,12 +42,14 @@ class _WorkerPageState extends State<WorkerPage> {
         _profileImages = imageMap;
       });
     } catch (e) {
-      // debugPrint("Error loading employees: $e");
+      debugPrint("Error loading employees: $e");
+      // Optionally show UI error feedback
       // ScaffoldMessenger.of(context).showSnackBar(
       //   const SnackBar(content: Text('Failed to load employees')),
       // );
     }
   }
+
 
   void _navigateToCreate({EmployeeModel? employee}) async {
     final result = await Navigator.push(
@@ -58,7 +60,7 @@ class _WorkerPageState extends State<WorkerPage> {
     );
 
     if (result == true) {
-      _loadEmployees();
+      _loadEmployees(2);
     }
   }
 
@@ -92,7 +94,7 @@ class _WorkerPageState extends State<WorkerPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ Worker deleted')),
       );
-      _loadEmployees(); // Refresh the list
+      _loadEmployees(2); // Refresh the list
     } catch (e) {
       debugPrint("Delete error: $e");
       ScaffoldMessenger.of(context).showSnackBar(
@@ -146,7 +148,8 @@ class _WorkerPageState extends State<WorkerPage> {
                 ),
                 title: Text(emp.name),
                 subtitle: Text(
-                    'ID: ${emp.id} • Type: ${emp.employeeType == 2 ? 'Employee' : 'Worker'}'),
+                    'ID: ${emp.id} • Type: ${emp.employeeType == 2 ? 'Employee' : 'Worker'}'
+                ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -160,7 +163,7 @@ class _WorkerPageState extends State<WorkerPage> {
                           ),
                         );
                         if (updated == true) {
-                          _loadEmployees(); // Refresh the list
+                          _loadEmployees(2); // Refresh the list
                         }
                       },
                     ),

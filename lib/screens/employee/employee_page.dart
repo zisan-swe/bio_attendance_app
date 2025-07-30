@@ -21,7 +21,7 @@ class _EmployeePageState extends State<EmployeePage> {
   @override
   void initState() {
     super.initState();
-    _loadEmployees();
+    _loadEmployees(1);
   }
 
   // Future<void> _loadEmployees() async {
@@ -38,9 +38,9 @@ class _EmployeePageState extends State<EmployeePage> {
   //   }
   // }
 
-  Future<void> _loadEmployees() async {
+  Future<void> _loadEmployees(int employeeType) async {
     try {
-      final data = await DatabaseHelper.instance.getAllEmployees();
+      final data = await DatabaseHelper.instance.getAllEmployees(employeeType: employeeType);
 
       // Build the profileImages map using stored image paths
       Map<int, File> imageMap = {};
@@ -55,12 +55,14 @@ class _EmployeePageState extends State<EmployeePage> {
         _profileImages = imageMap;
       });
     } catch (e) {
-      // debugPrint("Error loading employees: $e");
+      debugPrint("Error loading employees: $e");
+      // Optional UI feedback
       // ScaffoldMessenger.of(context).showSnackBar(
-      //   const SnackBar(content: Text('No employees records found')),
+      //   const SnackBar(content: Text('No employee records found')),
       // );
     }
   }
+
 
 
   void _navigateToCreate({EmployeeModel? employee}) async {
@@ -72,7 +74,7 @@ class _EmployeePageState extends State<EmployeePage> {
     );
 
     if (result == true) {
-      _loadEmployees();
+      _loadEmployees(1);
     }
   }
 
@@ -106,7 +108,7 @@ class _EmployeePageState extends State<EmployeePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ Employee deleted')),
       );
-      _loadEmployees(); // Refresh the list
+      _loadEmployees(1); // Refresh the list
     } catch (e) {
       debugPrint("Delete error: $e");
       ScaffoldMessenger.of(context).showSnackBar(
@@ -172,7 +174,7 @@ class _EmployeePageState extends State<EmployeePage> {
                         ),
                       );
                       if (updated == true) {
-                        _loadEmployees(); // Refresh the list
+                        _loadEmployees(1); // Refresh the list
                       }
                     },
                   ),

@@ -8,9 +8,9 @@ class EmployeeProvider with ChangeNotifier {
   List<EmployeeModel> get employees => _employees;
 
   // Load all employees from database
-  Future<void> fetchEmployees() async {
+  Future<void> fetchEmployees(int employeeType) async {
     try {
-      _employees = await DatabaseHelper.instance.getAllEmployees();
+      _employees = await DatabaseHelper.instance.getAllEmployees(employeeType: employeeType);
       notifyListeners();
     } catch (e) {
       debugPrint('Error fetching employees: $e');
@@ -22,33 +22,34 @@ class EmployeeProvider with ChangeNotifier {
     print(employee);
     try {
       await DatabaseHelper.instance.insertEmployee(employee);
-      await fetchEmployees();
+      await fetchEmployees(employee.employeeType); // pass the type from the model
     } catch (e) {
       debugPrint('Error adding employee: $e');
     }
   }
 
-  // Update employee if ID exists
+// Update employee if ID exists
   Future<void> updateEmployee(EmployeeModel employee) async {
     try {
       if (employee.id != null) {
         await DatabaseHelper.instance.updateEmployee(employee);
-        await fetchEmployees();
+        await fetchEmployees(employee.employeeType); // use the updated type
       }
     } catch (e) {
       debugPrint('Error updating employee: $e');
     }
   }
 
-  // Delete employee by ID
-  Future<void> deleteEmployee(int id) async {
+// Delete employee by ID and refresh list with correct type
+  Future<void> deleteEmployee(int id, int employeeType) async {
     try {
       await DatabaseHelper.instance.deleteEmployee(id);
-      await fetchEmployees();
+      await fetchEmployees(employeeType); // pass the current type manually
     } catch (e) {
       debugPrint('Error deleting employee: $e');
     }
   }
+
 
   // Get employee by ID
   EmployeeModel? getEmployeeById(int id) {

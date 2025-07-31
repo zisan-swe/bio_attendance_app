@@ -51,43 +51,42 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
   }
 
   Widget _buildFingerprintStatus(EmployeeModel? employee) {
-    if (employee == null) {
-      return const SizedBox.shrink();
-    }
+    if (employee == null) return const SizedBox.shrink();
 
-    // Extract fingerprint data from employee record
-    final fingerprints = [
-      if (employee.fingerInfo1?.isNotEmpty ?? false) 'Left Thumb',
-      if (employee.fingerInfo2?.isNotEmpty ?? false) 'Left Index',
-      if (employee.fingerInfo3?.isNotEmpty ?? false) 'Left Middle',
-      if (employee.fingerInfo4?.isNotEmpty ?? false) 'Left Ring',
-      if (employee.fingerInfo5?.isNotEmpty ?? false) 'Left Little',
-      if (employee.fingerInfo6?.isNotEmpty ?? false) 'Right Thumb',
-      if (employee.fingerInfo7?.isNotEmpty ?? false) 'Right Index',
-      if (employee.fingerInfo8?.isNotEmpty ?? false) 'Right Middle',
-      if (employee.fingerInfo9?.isNotEmpty ?? false) 'Right Ring',
-      if (employee.fingerInfo10?.isNotEmpty ?? false) 'Right Little',
+    final fingerprints = <String>[
+      if (employee.fingerInfo1.isNotEmpty) 'Left Thumb',
+      if (employee.fingerInfo2.isNotEmpty) 'Left Index',
+      if (employee.fingerInfo3.isNotEmpty) 'Left Middle',
+      if (employee.fingerInfo4.isNotEmpty) 'Left Ring',
+      if (employee.fingerInfo5.isNotEmpty) 'Left Little',
+      if (employee.fingerInfo6.isNotEmpty) 'Right Thumb',
+      if (employee.fingerInfo7.isNotEmpty) 'Right Index',
+      if (employee.fingerInfo8.isNotEmpty) 'Right Middle',
+      if (employee.fingerInfo9.isNotEmpty) 'Right Ring',
+      if (employee.fingerInfo10.isNotEmpty) 'Right Little',
     ];
 
-    if (fingerprints.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    if (fingerprints.isEmpty) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Registered Fingerprints:',
-              style: TextStyle(fontSize: 12, color: Colors.grey)),
+          const Text(
+            'Registered Fingerprints:',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
           Wrap(
             spacing: 4,
             runSpacing: 4,
-            children: fingerprints.map((finger) => Chip(
+            children: fingerprints
+                .map((finger) => Chip(
               label: Text(finger),
               backgroundColor: Colors.blue[50],
               labelStyle: const TextStyle(fontSize: 12),
-            )).toList(),
+            ))
+                .toList(),
           ),
         ],
       ),
@@ -169,9 +168,37 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
                               Text('Out: ${_timeFormat.format(DateTime.parse('2023-01-01 ${attendance.outTime}'))}'),
                             if (attendance.location?.isNotEmpty ?? false)
                               Text('Location: ${attendance.location}'),
+                            // 👉 Add this:
+                            // if (attendance.fingerprint.isNotEmpty)
+                            //   Text('Used Fingerprint: ${attendance.fingerprint}'),
+
+                            if (attendance.fingerprint.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.fingerprint, size: 16, color: Colors.deepPurple),
+                                    const SizedBox(width: 4),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.deepPurple[50],
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      child: Text(
+                                        'Used Fingerprint: ${attendance.fingerprint}',
+                                        style: const TextStyle(fontSize: 12, color: Colors.deepPurple),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+
+
+
                             if (employee != null) _buildFingerprintStatus(employee),
-                          ]
-                          ,
+                          ],
                         ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {

@@ -21,27 +21,20 @@ class _AttendancePageState extends State<AttendancePage> {
 
   Map<String, bool> fingerScanStatus = {
     'Left Thumb': false,
-    'Left Index': false,
-    'Left Middle': false,
-    'Left Ring': false,
-    'Left Little': false,
     'Right Thumb': false,
+    'Left Index': false,
     'Right Index': false,
+    'Left Middle': false,
     'Right Middle': false,
+    'Left Ring': false,
     'Right Ring': false,
+    'Left Little': false,
     'Right Little': false,
   };
-
-  // Map<String, String> staticFingerprintData = {
-  //   'Left Thumb': 'eyJmaW5nZXIiOiAicmlnaHRfaW5kZXgiLCAiaW1hZ2VfcXVhbGl0eSI6IDg1LCAicmVzb2x1dGlvbl9kcGkiOiA1MDAsICJtaW51dGlhZSI6IFt7InR5cGUiOiAicmlkZ2VfZW5kaW5nIiwgIngiOiAxMjMsICJ5IjogOTcsICJhbmdsZSI6IDcyfSwgeyJ0eXBlIjogImJpZnVyY2F0aW9uIiwgIngiOiAxMzQsICJ5IjogMTA1LCAiYW5nbGUiOiAxNTB9LCB7InR5cGUiOiAicmlkZ2VfZW5kaW5nIiwgIngiOiAxNDIsICJ5IjogODgsICJhbmdsZSI6IDQ1fSwgeyJ0eXBlIjogInJpZGdlX2VuZGluZyIsICJ4IjogMTU5LCAieSI6IDk5LCAiYW5nbGUiOiAzMH0sIHsidHlwZSI6ICJiaWZ1cmNhdGlvbiIsICJ4IjogMTQ4LCAieSI6IDExMCwgImFuZ2xlIjogOTV9XX0='
-  // };
 
   @override
   void initState() {
     super.initState();
-
-    // Automatically mark Left Thumb as scanned
-    // fingerScanStatus['Left Thumb'] = true;
     _updateTime();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _updateTime());
   }
@@ -53,8 +46,6 @@ class _AttendancePageState extends State<AttendancePage> {
       formattedDate = DateFormat('EEEE, MMMM d').format(now);
     });
   }
-
-
 
   Future<void> _storeAttendance() async {
     final hasAtLeastOneScan = fingerScanStatus.values.any((v) => v == true);
@@ -68,6 +59,8 @@ class _AttendancePageState extends State<AttendancePage> {
       );
       return;
     }
+
+    final selectedFinger = fingerScanStatus.entries.firstWhere((e) => e.value == true).key;
 
     final now = DateTime.now().toUtc().add(const Duration(hours: 6));
     final time = DateFormat('HH:mm:ss').format(now);
@@ -86,7 +79,8 @@ class _AttendancePageState extends State<AttendancePage> {
       attendanceStatus: selectedAction,
       inTime: (selectedAction == 'Check In' || selectedAction == 'Break In') ? time : '',
       outTime: (selectedAction == 'Check Out' || selectedAction == 'Break Out') ? time : '',
-      location: safeLocation, // unified location field
+      location: safeLocation,
+      fingerprint: selectedFinger,
       status: 1,
       remarks: '',
       createAt: now.toIso8601String(),
@@ -179,15 +173,21 @@ class _AttendancePageState extends State<AttendancePage> {
                 ],
               ),
               const SizedBox(height: 30),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: fingerScanStatus.keys.map(_buildFinger).toList(),
+
+              // Updated Finger Layout (Left-Right Pairs)
+              Column(
+                children: [
+                  _buildFingerRow('Left Thumb', 'Right Thumb'),
+                  _buildFingerRow('Left Index', 'Right Index'),
+                  _buildFingerRow('Left Middle', 'Right Middle'),
+                  _buildFingerRow('Left Ring', 'Right Ring'),
+                  _buildFingerRow('Left Little', 'Right Little'),
+                ],
               ),
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 onPressed: _storeAttendance,
-                icon: const Icon(Icons.check_circle,),
+                icon: const Icon(Icons.check_circle),
                 label: const Text('Submit Attendance'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
@@ -196,20 +196,19 @@ class _AttendancePageState extends State<AttendancePage> {
                 ),
               ),
               const SizedBox(height: 30),
-              // ✅ Add this block below the Submit Attendance button
               ElevatedButton(
                 onPressed: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const AttendanceListPage(), // Make sure this page is imported
+                      builder: (context) => const AttendanceListPage(),
                     ),
                   );
                 },
                 child: const Text('View Attendance Records'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  backgroundColor: Colors.blueGrey, // Optional styling
+                  backgroundColor: Colors.blueGrey,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
@@ -223,8 +222,6 @@ class _AttendancePageState extends State<AttendancePage> {
       ),
     );
   }
-
-
 
   Widget _buildRadioButton(String action) {
     final isSelected = selectedAction == action;
@@ -261,32 +258,112 @@ class _AttendancePageState extends State<AttendancePage> {
 
   Widget _buildFinger(String fingerName) {
     final isScanned = fingerScanStatus[fingerName] ?? false;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final buttonWidth = (screenWidth - 64) / 2;
 
-    return ElevatedButton(
-      onPressed: () {
-        setState(() {
-          fingerScanStatus[fingerName] = !isScanned;
-        });
-      },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isScanned ? Colors.green : Colors.grey[300],
-        foregroundColor: isScanned ? Colors.white : Colors.black,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+    return SizedBox(
+      width: buttonWidth,
+      height: 50,
+      child: ElevatedButton(
+        onPressed: () {
+          setState(() {
+            // ❗ Reset all to false, then mark only selected one as true
+            fingerScanStatus.updateAll((key, value) => false);
+            fingerScanStatus[fingerName] = true;
+          });
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isScanned ? Colors.green : Colors.grey[300],
+          foregroundColor: isScanned ? Colors.white : Colors.black,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          elevation: 2,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
         ),
-        elevation: 2,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Icon(
+            //   isScanned ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+            //   size: 20,
+            // ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                fingerName,
+                style: const TextStyle(fontSize: 13),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+
+
+
+
+
+  // Widget _buildFinger(String fingerName) {
+  //   final isScanned = fingerScanStatus[fingerName] ?? false;
+  //   final screenWidth = MediaQuery.of(context).size.width;
+  //   final buttonWidth = (screenWidth - 64) / 2; // 32px padding on each side + spacing
+  //
+  //   return SizedBox(
+  //     width: buttonWidth,
+  //     height: 50,
+  //     child: ElevatedButton(
+  //       onPressed: () {
+  //         setState(() {
+  //           fingerScanStatus[fingerName] = !isScanned;
+  //         });
+  //       },
+  //       style: ElevatedButton.styleFrom(
+  //         backgroundColor: isScanned ? Colors.green : Colors.grey[300],
+  //         foregroundColor: isScanned ? Colors.white : Colors.black,
+  //         shape: RoundedRectangleBorder(
+  //           borderRadius: BorderRadius.circular(20),
+  //         ),
+  //         elevation: 2,
+  //         padding: const EdgeInsets.symmetric(horizontal: 10),
+  //       ),
+  //       child: Row(
+  //         mainAxisAlignment: MainAxisAlignment.center,
+  //         children: [
+  //           Icon(
+  //             isScanned ? Icons.fingerprint : Icons.fingerprint_outlined,
+  //             size: 20,
+  //           ),
+  //           const SizedBox(width: 6),
+  //           Flexible(
+  //             child: Text(
+  //               fingerName,
+  //               style: const TextStyle(fontSize: 13),
+  //               overflow: TextOverflow.ellipsis,
+  //             ),
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
+
+
+
+  Widget _buildFingerRow(String leftFinger, String rightFinger) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(isScanned ? Icons.fingerprint : Icons.fingerprint_outlined, size: 24),
-          const SizedBox(width: 8),
-          Text(fingerName),
+          _buildFinger(leftFinger),
+          const SizedBox(width: 16),
+          _buildFinger(rightFinger),
         ],
       ),
     );
   }
 }
-
-

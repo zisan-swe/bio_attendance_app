@@ -13,7 +13,7 @@ class DatabaseHelper {
     if (_database != null && _database!.isOpen) return _database!;
 
     // Don't delete database every time — only during development if you want.
-    // await deleteDatabase(join(await getDatabasesPath(), 'biometric.db'));
+    //  await deleteDatabase(join(await getDatabasesPath(), 'biometric.db'));
 
     _database = await _initDB('biometric.db');
     return _database!;
@@ -25,7 +25,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 9,
+      version: 10,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -71,6 +71,7 @@ class DatabaseHelper {
         employee_no TEXT,
         working_date TEXT,
         attendance_status TEXT,
+        fingerprint TEXT,
         in_time TEXT,
         out_time TEXT,
         location TEXT,          -- renamed from check_out_location to location
@@ -81,29 +82,14 @@ class DatabaseHelper {
       )
     ''');
   }
-
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 8) {
-      // WARNING: Drops attendance table, only do this if you are sure to lose old data
-      await db.execute('DROP TABLE IF EXISTS attendance');
-      await db.execute('''
-        CREATE TABLE attendance (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          device_id TEXT,
-          project_id INTEGER,
-          block_id INTEGER,
-          employee_no TEXT,
-          working_date TEXT,
-          attendance_status TEXT,
-          in_time TEXT,
-          out_time TEXT,
-          location TEXT,
-          status INTEGER,
-          remarks TEXT,
-          create_at TEXT,
-          update_at TEXT
-        )
-      ''');
+    if (oldVersion < 10) {
+      final result = await db.rawQuery("PRAGMA table_info(attendance)");
+      final columns = result.map((row) => row['name']).toList();
+
+      if (!columns.contains('fingerprint')) {
+        await db.execute('ALTER TABLE attendance ADD COLUMN fingerprint TEXT');
+      }
     }
   }
 

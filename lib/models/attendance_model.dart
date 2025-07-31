@@ -6,6 +6,7 @@ class AttendanceModel {
   final String employeeNo;
   final String workingDate;
   final String attendanceStatus;
+  final String fingerprint;
   // final String? checkInLocation;
   final String inTime;
   final String outTime;
@@ -23,6 +24,7 @@ class AttendanceModel {
     required this.employeeNo,
     required this.workingDate,
     required this.attendanceStatus,
+    required this.fingerprint,
     // required this.checkInLocation,
     required this.inTime,
     required this.outTime,
@@ -42,6 +44,7 @@ class AttendanceModel {
       'employee_no': employeeNo,
       'working_date': workingDate,
       'attendance_status': attendanceStatus,
+      'fingerprint': fingerprint,
       // 'check_in_location': checkInLocation,
       'in_time': inTime,
       'out_time': outTime,
@@ -62,6 +65,7 @@ class AttendanceModel {
       employeeNo: map['employee_no'],
       workingDate: map['working_date'],
       attendanceStatus: map['attendance_status'],
+      fingerprint: map['fingerprint'],
       // checkInLocation: map['check_in_location'],
       inTime: map['in_time'],
       outTime: map['out_time'],

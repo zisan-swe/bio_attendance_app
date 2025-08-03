@@ -172,6 +172,35 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
     );
   }
 
+  Widget _buildFieldPhone(
+      String label,
+      TextEditingController controller,
+      IconData icon, {
+        bool isRequired = true,
+        bool isPhone = false,
+      }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
+      maxLength: isPhone ? 11 : null,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        border: const OutlineInputBorder(),
+        counterText: '', // optionally hide the character counter
+      ),
+      validator: (value) {
+        if (isRequired && (value == null || value.trim().isEmpty)) {
+          return 'Enter $label';
+        }
+        if (isPhone && value != null && !RegExp(r'^\d{11}$').hasMatch(value)) {
+          return 'Phone number must be exactly 11 digits';
+        }
+        return null;
+      },
+    );
+  }
+
   Widget _buildDateField(String label, TextEditingController controller) {
     return TextFormField(
       controller: controller,
@@ -268,7 +297,7 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
               const SizedBox(height: 12),
               _buildField('Worker Daily Wages', dailyWagesController, Icons.badge),
               const SizedBox(height: 12),
-              _buildField('Phone', phoneController, Icons.phone),
+              _buildFieldPhone('Phone', phoneController, Icons.phone,isPhone: true),
               const SizedBox(height: 12),
               _buildField('Father\'s Name', fatherController, Icons.person),
               const SizedBox(height: 12),

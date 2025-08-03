@@ -183,6 +183,27 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     );
   }
 
+  Widget _buildInputFieldPhone(String label, TextEditingController controller, IconData icon) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: TextInputType.phone,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        border: OutlineInputBorder(),
+      ),
+      maxLength: 11,
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Please enter your phone number';
+        } else if (!RegExp(r'^\d{11}$').hasMatch(value)) {
+          return 'Phone number must be exactly 11 digits';
+        }
+        return null;
+      },
+    );
+  }
+
   Widget _buildDateField(String label, TextEditingController controller) {
     return TextFormField(
       controller: controller,
@@ -339,7 +360,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                       ),
                       SizedBox(
                         width: isWide ? 400 : double.infinity,
-                        child: _buildInputField('Phone Number', phoneController, Icons.phone),
+                        child: _buildInputFieldPhone('Phone Number', phoneController, Icons.phone),
                       ),
                       SizedBox(
                         width: isWide ? 400 : double.infinity,

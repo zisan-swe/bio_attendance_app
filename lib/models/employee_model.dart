@@ -56,7 +56,7 @@ class EmployeeModel {
       email: map['email'] ?? '',
       employeeNo: map['employee_no'] ?? '',
       nid: map['nid'] ?? '',
-      dailyWages: map['daily_wages'] ?? '',
+      dailyWages: (map['daily_wages'] as num?)?.toDouble() ?? 0.0,
       phone: map['phone'] ?? '',
       fatherName: map['father_name'] ?? '',
       motherName: map['mother_name'] ?? '',

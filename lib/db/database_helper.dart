@@ -86,6 +86,8 @@ class DatabaseHelper {
     if (oldVersion < 10) {
       final result = await db.rawQuery("PRAGMA table_info(attendance)");
       final columns = result.map((row) => row['name']).toList();
+      // final columns = result.map((row) => row['name']?.toString()).whereType<String>().toList();
+
 
       if (!columns.contains('fingerprint')) {
         await db.execute('ALTER TABLE attendance ADD COLUMN fingerprint TEXT');
@@ -97,7 +99,9 @@ class DatabaseHelper {
 
   Future<int> insertEmployee(EmployeeModel employee) async {
     final db = await instance.database;
-    return await db.insert('employee', employee.toMap());
+    return await db.insert('employee', employee.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   // Future<List<EmployeeModel>> getAllEmployees() async {
@@ -157,6 +161,21 @@ class DatabaseHelper {
     final db = await instance.database;
     return await db.insert('attendance', attendance.toMap());
   }
+  Future<int> deleteAttendance(int id) async {
+    final db = await instance.database;
+    return await db.delete('attendance', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> updateAttendance(AttendanceModel attendance) async {
+    final db = await instance.database;
+    return await db.update(
+      'attendance',
+      attendance.toMap(),
+      where: 'id = ?',
+      whereArgs: [attendance.id],
+    );
+  }
+
 
   Future close() async {
     if (_database != null && _database!.isOpen) {

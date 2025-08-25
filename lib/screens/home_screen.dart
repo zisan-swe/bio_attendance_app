@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'enroll_screen.dart';
-// import 'attendance_screen.dart';
+import 'finger/fingerprint_page.dart';
+import 'finger/fingerprint_test_page.dart';
 import 'worker/worker_page.dart';
 import 'employee/employee_page.dart';
 import 'attendance/attendance_page.dart';
@@ -132,7 +133,7 @@ class HomeScreen extends StatelessWidget {
                   context: context,
                   label: 'Enroll Worker',
                   icon: Icons.fingerprint,
-                  destination: AttendancePage(),
+                  destination: FingerprintTestPage(),
                   color: Colors.orange,
                 ),
               ),

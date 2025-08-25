@@ -1,15 +1,24 @@
+import 'dart:typed_data';
 import 'package:flutter/services.dart';
 
 class FingerprintService {
-  static const platform = MethodChannel('com.yourcompany.fingerprint');
+  static const _channel = MethodChannel('com.legendit.zkteco');
 
-  Future<String?> scanFingerprint() async {
-    try {
-      final result = await platform.invokeMethod<String>('scanFingerprint');
-      return result;
-    } catch (e) {
-      print('Error scanning fingerprint: $e');
-      return null;
+  Future<Map<String, dynamic>> diagnoseUsb() async {
+    final res = await _channel.invokeMapMethod<String, dynamic>('diagnoseUsb');
+    return (res ?? <String, dynamic>{});
+  }
+
+  /// Starts native capture. Returns Base64 template on success.
+  /// Throws PlatformException(code, message) on failure.
+  Future<String> scanFingerprint() async {
+    final tpl = await _channel.invokeMethod<String>('scanFingerprint');
+    if (tpl == null || tpl.isEmpty) {
+      throw PlatformException(
+        code: 'EMPTY_TEMPLATE',
+        message: 'No template returned from native layer.',
+      );
     }
+    return tpl;
   }
 }

@@ -1,44 +1,68 @@
+// android/app/build.gradle (Groovy)
+
 plugins {
-    id("com.android.application")
-    id("kotlin-android")
-    id("dev.flutter.flutter-gradle-plugin")
+    id 'com.android.application'
+    id 'kotlin-android'
+    id 'dev.flutter.flutter-gradle-plugin'
 }
 
 android {
-    namespace = "com.example.bio_attendance_app"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.0.12077973"
+    namespace "com.example.bio_attendance_app"
+    compileSdkVersion flutter.compileSdkVersion
+    ndkVersion "27.0.12077973"
 
     defaultConfig {
-        applicationId = "com.example.bio_attendance_app"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        applicationId "com.example.bio_attendance_app"
+        minSdkVersion flutter.minSdkVersion
+        targetSdkVersion flutter.targetSdkVersion
+        versionCode flutter.versionCode
+        versionName flutter.versionName
+        consumerProguardFiles 'consumer-rules.pro'
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
-
-    kotlinOptions {
-        jvmTarget = "11"
-    }
+    kotlinOptions { jvmTarget = '11' }
 
     buildTypes {
-        getByName("release") {
-            isMinifyEnabled = false
-            isShrinkResources = false
-            signingConfig = signingConfigs.getByName("debug")
+        debug {
+            minifyEnabled false
+            shrinkResources false
         }
+        release {
+            minifyEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    // Quiet that Flutter lint hint (harmless)
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
     }
 }
 
-flutter {
-    source = "../.."
+flutter { source '../..' }
+
+// 🔒 Make Gradle search the *exact* app/libs folder
+// android/app/build.gradle
+repositories { flatDir { dirs "${project.projectDir}/libs" } }
+dependencies {
+    implementation files("${project.projectDir}/libs/zkandroidcore.jar")
+    implementation files("${project.projectDir}/libs/zkandroidfingerservice.jar")
+    implementation files("${project.projectDir}/libs/zkandroidfpreader.jar")
 }
 
-dependencies {
-    implementation("androidx.core:core:1.12.0") // ✅ Fix: use correct syntax
+
+// 🛠️ Helpful check: fail early if any jar is missing
+afterEvaluate {
+    ["zkandroidcore.jar","zkandroidfingerservice.jar","zkandroidfpreader.jar"].each { n ->
+        def f = file("${project.projectDir}/libs/${n}")
+        if (!f.exists()) {
+            throw new GradleException("Missing SDK file: ${f}")
+        }
+    }
 }

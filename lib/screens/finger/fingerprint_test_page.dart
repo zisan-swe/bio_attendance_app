@@ -34,15 +34,47 @@ class _FingerprintTestPageState extends State<FingerprintTestPage> {
   }
 
   Future<void> _scan() async {
-    setState(() { _log = 'Scanning...'; _template = null; });
-    try {
-      final tpl = await _svc.scanFingerprint();
-      setState(() { _template = tpl; _append('Scan OK (len=${tpl.length})'); });
-    } on PlatformException catch (e) {
-      setState(() => _log = 'Error: ${e.code} - ${e.message}');
-    } catch (e) {
-      setState(() => _log = 'Error: $e');
+    setState(() {
+      _log = '🟢 READY - Place finger on scanner NOW!\n\n' +
+          '• Press FIRMLY on the center\n' +
+          '• Cover the entire sensor surface\n' +
+          '• Keep finger STILL for 2 seconds\n' +
+          '• Wait for beep/light feedback\n\n' +
+          'Scanning in 2 seconds...';
+      _template = null;
+    });
+
+    await Future.delayed(Duration(seconds: 2));
+
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      try {
+        _append('\n=== Attempt $attempt ===');
+        _append('Scanning... (keep finger pressed)');
+
+        final tpl = await _svc.scanFingerprint();
+
+        setState(() {
+          _template = tpl;
+          _append('✅ SUCCESS! Template captured (${tpl.length} bytes)');
+        });
+        return;
+
+      } on PlatformException catch (e) {
+        if (e.code == 'CAPTURE_EMPTY') {
+          _append('❌ No fingerprint detected. Please:');
+          _append('   • Press HARDER and center finger');
+          _append('   • Try a DIFFERENT finger');
+          _append('   • Ensure finger is CLEAN and DRY');
+          await Future.delayed(Duration(seconds: 2));
+        } else {
+          _append('❌ Error: ${e.code} - ${e.message}');
+          break;
+        }
+      }
     }
+
+    _append('\n💡 TIPS: Clean sensor, use thumb/index, firm pressure');
+    _append('🔧 Check USB connection and try again');
   }
 
   @override

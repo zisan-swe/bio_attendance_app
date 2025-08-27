@@ -72,17 +72,43 @@ class MainActivity : FlutterActivity() {
                         scope.launch {
                             val dbg = StringBuilder()
                             try {
-                                // 1) Ensure device + permission (may show system dialog)
-                                val dev = withContext(Dispatchers.Main) { getDeviceWithPermission(dbg) }
-                                    ?: run {
-                                        dbg.appendLine("NO_DEVICE: no 0x1B55 device or permission denied.")
-                                        postError(result, "NO_DEVICE", "SLK20R not detected or USB permission denied.", dbg.toString()); return@launch
+                                // 1) First check current device status
+                                val um = usb()
+                                dbg.appendLine("Initial device scan:")
+                                um.deviceList.values.forEach {
+                                    dbg.appendLine("  - ${it.deviceName}: VID=0x${it.vendorId.toString(16)}, PID=0x${it.productId.toString(16)}, perm=${um.hasPermission(it)}")
+                                }
+
+                                var dev = findSlk20r(um)
+                                val hasPerm = dev?.let { um.hasPermission(it) } ?: false
+
+                                dbg.appendLine("Initial SLK20R found: $dev, hasPermission: $hasPerm")
+
+                                if (dev == null) {
+                                    postError(result, "NO_DEVICE", "SLK20R not detected.", dbg.toString()); return@launch
+                                }
+
+                                if (!hasPerm) {
+                                    // 2) Request permission (this shows the dialog)
+                                    dbg.appendLine("Requesting USB permission...")
+                                    dev = withContext(Dispatchers.Main) { getDeviceWithPermission(dbg) }
+                                    if (dev == null) {
+                                        postError(result, "NO_DEVICE", "USB permission denied.", dbg.toString()); return@launch
                                     }
 
-                                // 2) Open/init SDK
+                                    // 3) After permission granted, re-check the device
+                                    dbg.appendLine("Permission granted, re-scanning devices...")
+                                    dev = findDeviceAfterPermission(um, dbg)
+                                    if (dev == null) {
+                                        postError(result, "NO_DEVICE", "Device not found after permission grant.", dbg.toString()); return@launch
+                                    }
+                                    dbg.appendLine("Device confirmed after permission: $dev")
+                                }
+
+                                // 4) Open/init SDK
                                 ensureOpened(dev, dbg)
 
-                                // 3) Capture (sync → async → direct-template), with retries
+                                // 5) Capture (sync → async → direct-template), with retries
                                 var bytes: ByteArray? = captureWithRetries(dbg, totalMs = 10000, perAttemptMs = 1600)
 
                                 // If still empty, try direct template APIs
@@ -102,13 +128,13 @@ class MainActivity : FlutterActivity() {
                                     postSuccess(result, Base64.encodeToString(bytes, Base64.NO_WRAP)); return@launch
                                 }
 
-                                // 4) Extract template from image
+                                // 6) Extract template from image
                                 val tpl = extractTemplate(bytes, dbg)
                                 if (tpl == null || tpl.isEmpty()) {
                                     postError(result, "EXTRACT_FAIL", "Template extraction failed.", dbg.toString()); return@launch
                                 }
 
-                                // 5) Return Base64 template
+                                // 7) Return Base64 template
                                 postSuccess(result, Base64.encodeToString(tpl, Base64.NO_WRAP))
                             } catch (t: Throwable) {
                                 Log.e(TAG, "scanFingerprint failed", t)
@@ -147,7 +173,7 @@ class MainActivity : FlutterActivity() {
         return suspendCancellableCoroutine { cont ->
             val pi = PendingIntent.getBroadcast(
                 this, 0, Intent(ACTION_USB_PERMISSION),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE // ← CHANGE TO MUTABLE
             )
 
             val receiver = object : BroadcastReceiver() {
@@ -155,11 +181,21 @@ class MainActivity : FlutterActivity() {
                     if (intent?.action == ACTION_USB_PERMISSION) {
                         try { unregisterReceiver(this) } catch (_: Throwable) {}
                         val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
-                        dbg?.appendLine("USB permission result: granted=$granted")
-                        if (!cont.isCompleted) cont.resume(if (granted) dev else null)
+                        val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE) // ← GET DEVICE FROM INTENT
+
+                        dbg?.appendLine("USB permission result: granted=$granted, device=$device")
+
+                        if (!cont.isCompleted) {
+                            if (granted && device != null) {
+                                cont.resume(device) // ← RETURN THE DEVICE FROM INTENT
+                            } else {
+                                cont.resume(null)
+                            }
+                        }
                     }
                 }
             }
+
             val filter = IntentFilter(ACTION_USB_PERMISSION)
             if (Build.VERSION.SDK_INT >= 33) {
                 registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -167,11 +203,30 @@ class MainActivity : FlutterActivity() {
                 @Suppress("DEPRECATION")
                 registerReceiver(receiver, filter)
             }
-            dbg?.appendLine("Requesting USB permission…")
+
+            dbg?.appendLine("Requesting USB permission for device: $dev")
             um.requestPermission(dev, pi)
-            cont.invokeOnCancellation { try { unregisterReceiver(receiver) } catch (_: Throwable) {} }
+
+            cont.invokeOnCancellation {
+                try { unregisterReceiver(receiver) } catch (_: Throwable) {}
+            }
         }
     }
+    private fun findDeviceAfterPermission(um: UsbManager, dbg: StringBuilder? = null): UsbDevice? {
+        // Re-scan all devices after permission grant
+        val devices = um.deviceList.values
+        dbg?.appendLine("Re-scanning devices after permission: ${devices.size} found")
+
+        devices.forEach { device ->
+            dbg?.appendLine("Device: ${device.deviceName}, VID=0x${device.vendorId.toString(16)}, " +
+                    "PID=0x${device.productId.toString(16)}, perm=${um.hasPermission(device)}")
+        }
+
+        return findSlk20r(um).also {
+            dbg?.appendLine("SLK20R found after permission: $it")
+        }
+    }
+
 
     // ✅ Any PID for ZKTeco vendor (0x1B55)
     private fun findSlk20r(um: UsbManager): UsbDevice? =

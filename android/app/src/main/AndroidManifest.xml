@@ -1,27 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- USB host (make optional so non‑OTG devices can still install) -->
-    <uses-feature
-        android:name="android.hardware.usb.host"
-        android:required="false" />
+    <!-- Optional USB host -->
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
-    <!-- Camera optional (you already had this) -->
-    <uses-feature
-        android:name="android.hardware.camera"
-        android:required="false" />
+    <!-- Optional Camera -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
-    <!-- Permissions -->
-    <!-- REMOVE: android.permission.USB_PERMISSION (not a real permission) -->
+    <!-- Other permissions -->
     <uses-permission android:name="android.permission.CAMERA" />
-
-    <!-- Scoped storage: cap legacy storage perms at API 32 to avoid Play warnings -->
-    <uses-permission
-        android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-    <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
@@ -29,12 +17,7 @@
         android:label="bio_attendance_app"
         android:icon="@mipmap/ic_launcher">
 
-        <!-- USB device filter so Android routes the SLK20R attach intent to your app -->
-        <meta-data
-            android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
-            android:resource="@xml/device_filter" />
-
-        <!-- FileProvider for camera -->
+        <!-- FileProvider -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -45,24 +28,35 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- MainActivity -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:taskAffinity=""
             android:theme="@style/LaunchTheme"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:windowSoftInputMode="adjustResize"
             android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize">
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode">
 
-            <meta-data
-                android:name="io.flutter.embedding.android.NormalTheme"
-                android:resource="@style/NormalTheme" />
-
+            <!-- Launch intent -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- USB attach intent -->
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+
+            <!-- SLK20R device filter -->
+            <meta-data
+                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                android:resource="@xml/device_filter" />
+
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
         </activity>
 
         <meta-data
@@ -70,7 +64,7 @@
             android:value="2" />
     </application>
 
-    <!-- Let the app query for USB attach intents (helpful on newer Android) -->
+    <!-- Optional: Query for intent -->
     <queries>
         <intent>
             <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />

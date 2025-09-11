@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <usb-device vendor-id="6997" /> <!-- 0x1B55 = 6997 decimal -->
+     <!-- <usb-device vendor-id="0x1B55" product-id="0x0120"/> -->
+         <!-- Use decimal values, not hex -->
+    <usb-device vendor-id="6997" product-id="288"/>
 </resources>

@@ -12,6 +12,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   String errorMessage = '';
+  bool _obscurePassword = true;
 
   void _login() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
@@ -54,6 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
     required String label,
     bool obscureText = false,
     IconData? icon,
+    VoidCallback? onToggleVisibility,
   }) {
     return TextField(
       controller: controller,
@@ -66,6 +68,14 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         filled: true,
         fillColor: Colors.grey[100],
+        suffixIcon: onToggleVisibility != null
+            ? IconButton(
+                icon: Icon(
+                  obscureText ? Icons.visibility_off : Icons.visibility,
+                ),
+                onPressed: onToggleVisibility,
+              )
+            : null,
       ),
     );
   }
@@ -115,8 +125,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     _buildTextField(
                       controller: passwordController,
                       label: 'Password',
-                      obscureText: true,
+                      obscureText: _obscurePassword,
                       icon: Icons.lock,
+                      onToggleVisibility: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
                     ),
                     SizedBox(height: 24),
                     SizedBox(

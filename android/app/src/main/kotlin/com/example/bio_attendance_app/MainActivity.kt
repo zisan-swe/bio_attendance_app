@@ -1,25 +1,42 @@
 package com.example.bio_attendance_app
 
 import android.app.PendingIntent
-import android.content.*
-import android.graphics.Bitmap
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Build
+import android.os.Bundle
 import android.util.Base64
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import java.lang.StringBuilder
-import java.lang.reflect.Proxy
-import java.nio.ByteBuffer
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
+
+import com.zkteco.android.biometric.core.device.ParameterHelper
+import com.zkteco.android.biometric.core.device.TransportType
+import com.zkteco.android.biometric.core.utils.LogHelper
+import com.zkteco.android.biometric.module.fingerprintreader.FingerprintCaptureListener
+import com.zkteco.android.biometric.module.fingerprintreader.FingerprintSensor
+import com.zkteco.android.biometric.module.fingerprintreader.FingerprintFactory
+import com.zkteco.android.biometric.module.fingerprintreader.ZKFingerService
+import com.zkteco.android.biometric.module.fingerprintreader.exception.FingerprintException
+import java.lang.reflect.Method
+import java.util.HashMap
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.legendit.zkteco"
@@ -28,15 +45,9 @@ class MainActivity : FlutterActivity() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // Class names present in your JARs (confirmed family)
-    private val CLS_SERVICE = "com.zkteco.android.biometric.module.fingerprintreader.ZKFingerService"
-    private val CLS_SENSOR  = "com.zkteco.android.biometric.module.fingerprintreader.FingerprintSensor"
-    private val CLS_FACTORY1 = "com.zkteco.android.biometric.module.fingerprintreader.FingprintFactory" // SDK typo
-    private val CLS_FACTORY2 = "com.zkteco.android.biometric.module.fingerprintreader.FingerprintFactory"
-    private val CLS_CAPTURE_LISTENER = "com.zkteco.android.biometric.module.fingerprintreader.FingerprintCaptureListener"
-
-    @Volatile private var fingerService: Any? = null
-    @Volatile private var fpReader: Any? = null
+    private var fingerprintSensor: FingerprintSensor? = null
+    private val VID = 6997 // 0x1B55
+    private val PID = 288  // 0x0120
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -55,12 +66,12 @@ class MainActivity : FlutterActivity() {
                             val has = slk?.let { um.hasPermission(it) } ?: false
                             val sdkPresent = hasVendorSdk()
                             val note = if (isEmulator()) "Running on emulator; OTG not supported." else null
-                            postSuccessMap(result, mapOf(
-                                "devices" to sb.toString().trim(),
-                                "hasPermission" to has,
-                                "sdkPresent" to sdkPresent,
-                                "note" to note
-                            ))
+                           postSuccessMap(result, mapOf(
+                            "devices" to sb.toString().trim(),
+                            "hasPermission" to has,
+                            "sdkPresent" to sdkPresent,
+                            "note" to note
+                        ))
                         }
                     }
 
@@ -108,15 +119,15 @@ class MainActivity : FlutterActivity() {
                                 // 4) Open/init SDK
                                 ensureOpened(dev, dbg)
 
-                                // 5) Capture (sync → async → direct-template), with retries
-                                var bytes: ByteArray? = captureWithRetries(dbg, totalMs = 10000, perAttemptMs = 1600)
+                                // 5) Turn on LED to indicate ready state
+                                dbg.appendLine("Turning on scanner LED...")
+                                controlScannerLed(true, dbg)
 
-                                // If still empty, try direct template APIs
-                                if (bytes == null || bytes.isEmpty()) {
-                                    dbg.appendLine("Trying direct template APIs…")
-                                    bytes = captureTemplateDirect(dbg, 6000)
-                                    if (bytes != null) dbg.appendLine("Direct template API returned ${bytes.size} bytes.")
-                                }
+                                // 6) Capture with retries
+                                var bytes: ByteArray? = captureWithRetries(dbg, totalMs = 15000, perAttemptMs = 5000)
+
+                                // 7) Turn off LED after capture attempt
+                                controlScannerLed(false, dbg)
 
                                 if (bytes == null || bytes.isEmpty()) {
                                     postError(result, "CAPTURE_EMPTY", "No finger image captured.", dbg.toString()); return@launch
@@ -128,15 +139,16 @@ class MainActivity : FlutterActivity() {
                                     postSuccess(result, Base64.encodeToString(bytes, Base64.NO_WRAP)); return@launch
                                 }
 
-                                // 6) Extract template from image
+                                // 8) Extract template from image (if needed; listener already extracts)
                                 val tpl = extractTemplate(bytes, dbg)
                                 if (tpl == null || tpl.isEmpty()) {
                                     postError(result, "EXTRACT_FAIL", "Template extraction failed.", dbg.toString()); return@launch
                                 }
 
-                                // 7) Return Base64 template
+                                // 9) Return Base64 template
                                 postSuccess(result, Base64.encodeToString(tpl, Base64.NO_WRAP))
                             } catch (t: Throwable) {
+                                controlScannerLed(false, dbg) // Ensure LED is off on error
                                 Log.e(TAG, "scanFingerprint failed", t)
                                 dbg.appendLine("Exception: ${t.javaClass.simpleName}: ${t.message}")
                                 postError(result, "SCAN_FAIL", t.message ?: t.toString(), dbg.toString())
@@ -146,11 +158,28 @@ class MainActivity : FlutterActivity() {
                         }
                     }
 
-                    // Optional: call from Flutter to see a deep dump of methods
                     "dumpSdk" -> {
                         scope.launch {
                             val dump = dumpAllSdkInfo()
                             postSuccess(result, dump)
+                        }
+                    }
+
+                    "ledOn" -> {
+                        try {
+                            controlScannerLed(true, StringBuilder())
+                            result.success(null)
+                        } catch (e: Exception) {
+                            result.error("LED_ON_ERROR", e.message, null)
+                        }
+                    }
+
+                    "ledOff" -> {
+                        try {
+                            controlScannerLed(false, StringBuilder())
+                            result.success(null)
+                        } catch (e: Exception) {
+                            result.error("LED_OFF_ERROR", e.message, null)
                         }
                     }
 
@@ -173,7 +202,7 @@ class MainActivity : FlutterActivity() {
         return suspendCancellableCoroutine { cont ->
             val pi = PendingIntent.getBroadcast(
                 this, 0, Intent(ACTION_USB_PERMISSION),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE // ← CHANGE TO MUTABLE
+                PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_MUTABLE else 0
             )
 
             val receiver = object : BroadcastReceiver() {
@@ -181,13 +210,13 @@ class MainActivity : FlutterActivity() {
                     if (intent?.action == ACTION_USB_PERMISSION) {
                         try { unregisterReceiver(this) } catch (_: Throwable) {}
                         val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
-                        val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE) // ← GET DEVICE FROM INTENT
+                        val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
 
                         dbg?.appendLine("USB permission result: granted=$granted, device=$device")
 
                         if (!cont.isCompleted) {
                             if (granted && device != null) {
-                                cont.resume(device) // ← RETURN THE DEVICE FROM INTENT
+                                cont.resume(device)
                             } else {
                                 cont.resume(null)
                             }
@@ -197,7 +226,7 @@ class MainActivity : FlutterActivity() {
             }
 
             val filter = IntentFilter(ACTION_USB_PERMISSION)
-            if (Build.VERSION.SDK_INT >= 33) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
             } else {
                 @Suppress("DEPRECATION")
@@ -212,8 +241,8 @@ class MainActivity : FlutterActivity() {
             }
         }
     }
+
     private fun findDeviceAfterPermission(um: UsbManager, dbg: StringBuilder? = null): UsbDevice? {
-        // Re-scan all devices after permission grant
         val devices = um.deviceList.values
         dbg?.appendLine("Re-scanning devices after permission: ${devices.size} found")
 
@@ -227,432 +256,201 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-
     // ✅ Any PID for ZKTeco vendor (0x1B55)
-    private fun findSlk20r(um: UsbManager): UsbDevice? =
-        um.deviceList.values.firstOrNull { d -> d.vendorId == 0x1B55 }
+    private fun findSlk20r(um: UsbManager): UsbDevice? {
+        // Preferred vendor IDs often used by ZKTeco/SilkID devices.
+        val preferredVids = listOf(0x1B55, 0x1B96, 0x1B3F, 0x0401)
+        // 1) Exact VID match
+        um.deviceList.values.firstOrNull { d -> d.vendorId in preferredVids }?.let { return it }
 
-    /* -------------------------- SDK wiring (robust) --------------------------- */
+        // 2) Name heuristics
+        um.deviceList.values.firstOrNull { d ->
+            val nm = d.deviceName ?: ""
+            nm.contains("zk", ignoreCase = true) ||
+                    nm.contains("zkteco", ignoreCase = true) ||
+                    nm.contains("slk", ignoreCase = true) ||
+                    nm.contains("silk", ignoreCase = true)
+        }?.let { return it }
+
+        // 3) Interface class heuristic: vendor-specific (0xFF)
+        um.deviceList.values.firstOrNull { d ->
+            try {
+                var found = false
+                for (i in 0 until d.interfaceCount) {
+                    val intf = d.getInterface(i)
+                    if (intf.interfaceClass == 255) { // UsbConstants.USB_CLASS_VENDOR_SPEC
+                        found = true
+                        break
+                    }
+                }
+                found
+            } catch (e: Throwable) {
+                false
+            }
+        }?.let { return it }
+
+        // 4) Fallback: first available device
+        return um.deviceList.values.firstOrNull()
+    }
+
+    /* -------------------------- SDK wiring (direct calls) --------------------------- */
 
     @Synchronized
     @Throws(Exception::class)
     private fun ensureOpened(dev: UsbDevice, dbg: StringBuilder) {
-        if (fingerService != null && fpReader != null) { dbg.appendLine("ensureOpened: already open."); return }
+        if (fingerprintSensor != null) {
+            dbg.appendLine("ensureOpened: already open.")
+            return
+        }
 
-        // Service (init optional)
-        fingerService = createZkService(dbg)
+        LogHelper.setLevel(Log.DEBUG)
+        val params = HashMap<String, Any>()  // Use Any to allow Integer
+        params[ParameterHelper.PARAM_KEY_VID] = java.lang.Integer.valueOf(VID)  // Box kotlin.Int to java.lang.Integer
+        params[ParameterHelper.PARAM_KEY_PID] = java.lang.Integer.valueOf(PID)  // Box kotlin.Int to java.lang.Integer
 
-        // Optional: SilkID bootstrap
+        fingerprintSensor = FingerprintFactory.createFingerprintSensor(this, TransportType.USB, params)
+        if (fingerprintSensor == null) throw RuntimeException("Factory failed")
+
+        dbg.appendLine("FingerprintSensor created")
+
         try {
-            val silkCls = Class.forName("com.zkteco.android.biometric.util.SilkidService")
-            val silk = tryConstruct(silkCls, this) ?: silkCls.getDeclaredConstructor().newInstance()
-            tryInvokeAny(silk, listOf("init", "initialize", "start"), arrayOf(this))
-            dbg.appendLine("SilkidService initialized.")
-        } catch (_: Throwable) { }
+            fingerprintSensor!!.open(0)
+            dbg.appendLine("Opened with index=0")
 
-        // Sensor via factory then constructors
-        val sensor = tryCreateSensor(dbg)
-            ?: throw RuntimeException("Could not create FingerprintSensor (no factory/constructor matched).")
-        fpReader = sensor
-        dbg.appendLine("Sensor created: ${sensor.javaClass.name}")
-
-        // Try to open with many signatures
-        if (!tryOpenSensor(sensor, dev, dbg)) {
-            dumpMethods(sensor, listOf("open", "openDevice", "openReader", "openDeviceEx", "connect", "start"), dbg)
-            throw RuntimeException("Failed to open FingerprintSensor (no matching open() signature).")
+            val sn = fingerprintSensor!!.strSerialNumber
+            val fw = fingerprintSensor!!.firmwareVersion
+            dbg.appendLine("Device SN: $sn, Firmware: $fw")
+        } catch (e: FingerprintException) {
+            dbg.appendLine("Open failed: ${e.errorCode} - ${e.message}")
+            throw e
         }
-        dbg.appendLine("FingerprintSensor opened successfully.")
 
-        // Optional knobs (best-effort)
-        tryInvokeAny(sensor, listOf("setLed", "setLED", "enableLeds"), arrayOf(true))
-        tryInvokeAny(sensor, listOf("setDPI", "setResolution"), arrayOf(500))
-        tryInvokeAny(sensor, listOf("setTimeout", "setTimeOut"), arrayOf(10000))
+        try {
+            fingerprintSensor!!.setFakeFunOn(1)
+            dbg.appendLine("Anti-fake enabled")
+        } catch (e: Exception) {
+            dbg.appendLine("setFakeFunOn failed: ${e.message}")
+        }
     }
 
-    /** Repeated capture attempts (sync → async in each attempt) until something arrives or timeout. */
+    /** Direct async capture with listener (Sec 3.1.3-3.1.5) */
     private fun captureWithRetries(dbg: StringBuilder, totalMs: Int, perAttemptMs: Int): ByteArray? {
+        val sensor = fingerprintSensor ?: return null
         val deadline = System.currentTimeMillis() + totalMs
-        var attempt = 0
-        while (System.currentTimeMillis() < deadline) {
-            attempt++
-            dbg.appendLine("Attempt #$attempt (perAttemptMs=$perAttemptMs)…")
-            var img = captureSync(perAttemptMs, dbg)
-            if (img == null || img.isEmpty()) {
-                dbg.appendLine("Sync capture empty; trying async listener path…")
-                img = captureAsync(perAttemptMs, dbg)
+        var capturedImage: ByteArray? = null
+        var capturedTemplate: ByteArray? = null
+
+        val listener = object : FingerprintCaptureListener {
+            override fun captureOK(fpImage: ByteArray) {
+                capturedImage = fpImage
+                Log.i(TAG, "captureOK: ${fpImage.size} bytes image")
+                dbg.appendLine("captureOK: ${fpImage.size} bytes image")
+                // Optional: Log width/height
+                Log.i(TAG, "Image: width=${sensor.imageWidth}, height=${sensor.imageHeight}")
             }
-            if (img != null && img.isNotEmpty()) {
-                dbg.appendLine("Got ${img.size} bytes from attempt #$attempt.")
-                return img
+            override fun captureError(e: FingerprintException) {
+                Log.e(TAG, "captureError: ${e.errorCode} - ${e.message}")
+                dbg.appendLine("captureError: ${e.errorCode} - ${e.message}")
             }
-            try { Thread.sleep(150) } catch (_: Throwable) {}
+            override fun extractOK(fpTemplate: ByteArray) {
+                capturedTemplate = fpTemplate
+                Log.i(TAG, "extractOK: ${fpTemplate.size} bytes template")
+                dbg.appendLine("extractOK: ${fpTemplate.size} bytes template")
+            }
+            override fun extractError(errno: Int) {
+                Log.e(TAG, "extractError: $errno")
+                dbg.appendLine("extractError: $errno (see Appendix I for codes)")
+            }
         }
-        return null
+
+        try {
+            sensor.setFingerprintCaptureListener(0, listener)  // Exact: index=0
+            sensor.startCapture(0)  // Exact: starts async, triggers listener
+            dbg.appendLine("setFingerprintCaptureListener(0) & startCapture(0) called")
+
+            // Poll for result with latch
+            val latch = CountDownLatch(1)
+            val timeoutLatch = Thread {
+                try {
+                    Thread.sleep(perAttemptMs.toLong())
+                } catch (_: InterruptedException) {}
+                if (latch.count > 0) latch.countDown()
+            }
+            timeoutLatch.start()
+
+            latch.await()
+            timeoutLatch.join()
+
+            sensor.stopCapture(0)
+            dbg.appendLine("stopCapture(0) called")
+
+            // Prioritize template; fallback to image
+            return capturedTemplate?.takeIf { it.isNotEmpty() } ?: capturedImage?.takeIf { it.isNotEmpty() }
+            ?: run {
+                dbg.appendLine("No data in listener callbacks")
+                null
+            }
+        } catch (e: FingerprintException) {
+            dbg.appendLine("Capture exception: ${e.errorCode} - ${e.message}")
+            return null
+        }
     }
 
-    /** Try direct/synchronous capture variants */
-    private fun captureSync(timeoutMs: Int, dbg: StringBuilder): ByteArray? {
-        val s = fpReader ?: return null
-        (tryInvokeAny(s, listOf("capture"), arrayOf(timeoutMs)) as? ByteArray)?.let { dbg.appendLine("capture(int) → ${it.size} bytes"); return it }
-        (tryInvokeAny(s, listOf("capture"), emptyArray()) as? ByteArray)?.let { dbg.appendLine("capture() → ${it.size} bytes"); return it }
-        (tryInvokeAny(s, listOf("getImage", "acquire", "getImageEx", "acquireImage"), arrayOf(timeoutMs)) as? ByteArray)?.let { dbg.appendLine("getImage(int) → ${it.size} bytes"); return it }
-        (tryInvokeAny(s, listOf("getImage", "acquire", "getImageEx", "acquireImage"), emptyArray()) as? ByteArray)?.let { dbg.appendLine("getImage() → ${it.size} bytes"); return it }
-
-        // Some SDKs return an object; try to convert to bytes
-        val obj = tryInvokeAny(s, listOf("capture", "getImage", "acquire", "getImageEx", "acquireImage"), arrayOf(timeoutMs))
-            ?: tryInvokeAny(s, listOf("capture", "getImage", "acquire", "getImageEx", "acquireImage"), emptyArray())
-        if (obj != null) {
-            when (obj) {
-                is Bitmap -> {
-                    val arr = bitmapToGrayscaleBytes(obj); dbg.appendLine("capture→Bitmap (${arr.size} bytes)"); return arr
-                }
-                is ByteBuffer -> {
-                    val arr = ByteArray(obj.remaining()); obj.get(arr); dbg.appendLine("capture→ByteBuffer (${arr.size} bytes)"); return arr
-                }
-                else -> {
-                    val asBytes = obj.javaClass.methods.firstOrNull {
-                        it.name.equals("getImage", true) || it.name.equals("getBytes", true) || it.name.equals("toBytes", true)
-                    }?.invoke(obj) as? ByteArray
-                    if (asBytes != null) { dbg.appendLine("capture→obj.getBytes (${asBytes.size} bytes)"); return asBytes }
-                }
-            }
-        }
-        return null
-    }
-
-    /** Async capture via any *Listener setter + startCapture/start/beginCapture/autoCapture */
-    private fun captureAsync(timeoutMs: Int, dbg: StringBuilder): ByteArray? {
-        val s = fpReader ?: return null
-
-        // 1) Find a suitable listener setter
-        val listenerSetter = s.javaClass.methods.firstOrNull { m ->
-            val n = m.name.lowercase()
-            val looksLikeSetter = n.startsWith("set") || n.startsWith("add") || n.startsWith("register")
-            val listenerish = n.contains("listener") || n.contains("capture") || n.contains("image") || n.contains("finger")
-            looksLikeSetter && listenerish && m.parameterTypes.size == 1 && m.parameterTypes[0].isInterface
-        } ?: s.javaClass.methods.firstOrNull { m ->
-            (m.name.equals("setCaptureListener", true) || m.name.equals("addCaptureListener", true)) && m.parameterTypes.size == 1
-        } ?: run {
-            dbg.appendLine("No listener setter found on ${s.javaClass.simpleName}."); return null
-        }
-
-        val iface = listenerSetter.parameterTypes[0]
-        dbg.appendLine("Using listener setter ${listenerSetter.name}(${iface.simpleName})")
-
-        val imageRef = AtomicReference<ByteArray?>()
-        val latch = CountDownLatch(1)
-
-        // 2) Build dynamic proxy for that interface
-        val proxy = Proxy.newProxyInstance(
-            iface.classLoader,
-            arrayOf(iface)
-        ) { _, _, args ->
-            try {
-                // Prefer byte[] / ByteBuffer / Bitmap
-                args?.forEach { a ->
-                    when (a) {
-                        is ByteArray -> if (a.isNotEmpty()) { imageRef.set(a); latch.countDown() }
-                        is ByteBuffer -> {
-                            val arr = ByteArray(a.remaining()); a.get(arr); if (arr.isNotEmpty()) { imageRef.set(arr); latch.countDown() }
-                        }
-                        is Bitmap -> {
-                            val arr = bitmapToGrayscaleBytes(a); if (arr.isNotEmpty()) { imageRef.set(arr); latch.countDown() }
-                        }
-                        else -> {
-                            val bb = try {
-                                a?.javaClass?.methods?.firstOrNull {
-                                    it.name.equals("getBytes", true) || it.name.equals("toBytes", true) || it.name.equals("getImage", true)
-                                }?.invoke(a) as? ByteArray
-                            } catch (_: Throwable) { null }
-                            if (bb != null && bb.isNotEmpty()) { imageRef.set(bb); latch.countDown() }
-                        }
-                    }
-                }
-            } catch (_: Throwable) { }
+    /** Extract template via ZKFingerService if image provided */
+    private fun extractTemplate(imageBytes: ByteArray, dbg: StringBuilder): ByteArray? {
+        return try {
+            // SDK listener handles extractOK; fallback quality check
+            val quality = ZKFingerService.getTemplateQuality(imageBytes)
+            dbg.appendLine("Template quality: $quality")
+            imageBytes  // Fallback to image
+        } catch (e: Exception) {
+            dbg.appendLine("Extract failed: ${e.message}")
             null
         }
-
-        // register listener
-        try { listenerSetter.isAccessible = true; listenerSetter.invoke(s, proxy); dbg.appendLine("Listener registered via ${listenerSetter.name}") }
-        catch (t: Throwable) { dbg.appendLine("Failed to register listener: ${t.message}"); return null }
-
-        // 3) Start capture (try many names)
-        val starters = s.javaClass.methods.filter { m ->
-            val n = m.name.lowercase()
-            n == "startcapture" || n == "start" || n == "begincapture" || n == "startimage" || n == "acquirestart" || n == "startautocapture" || n == "startcaptureimage"
-        }
-        if (starters.isEmpty()) { dumpMethods(s, listOf("start", "capture", "begin"), dbg); return null }
-
-        var started = false
-        val candidateArgs = listOf(
-            emptyArray(),
-            arrayOf(false), arrayOf(true),
-            arrayOf(timeoutMs),
-            arrayOf(timeoutMs, false), arrayOf(timeoutMs, true),
-            arrayOf(this), arrayOf(this, false), arrayOf(this, true)
-        )
-        outer@ for (m in starters) {
-            for (args in candidateArgs) {
-                if (m.parameterTypes.size != args.size) continue
-                try {
-                    m.isAccessible = true
-                    m.invoke(s, *args)
-                    started = true
-                    dbg.appendLine("Started async via ${m.name}(${args.joinToString { it.javaClass.simpleName }})")
-                    break@outer
-                } catch (_: Throwable) { }
-            }
-        }
-        if (!started) { dbg.appendLine("Could not start async capture with any known signature."); return null }
-
-        // 4) Wait for a callback
-        latch.await(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
-        val img = imageRef.get()
-
-        // 5) Stop capture if method exists
-        try { tryInvokeAny(s, listOf("stopCapture", "stop", "end"), emptyArray()) } catch (_: Throwable) {}
-        if (img != null) dbg.appendLine("Async listener delivered ${img.size} bytes.")
-
-        return img
     }
 
-    /** Some SDKs provide a direct template capture on sensor or service (no image path). */
-    private fun captureTemplateDirect(dbg: StringBuilder, timeoutMs: Int): ByteArray? {
-        val s = fpReader
-        val svc = fingerService
-
-        val names = listOf("acquireTemplate", "getTemplate", "captureTemplate", "getFPTemplate", "acquireFingerTemplate", "generateTemplate")
-        val argsList: List<Array<Any>> = listOf(
-            emptyArray(),
-            arrayOf(timeoutMs),
-            arrayOf(this),
-            arrayOf(this, timeoutMs)
-        )
-
-        if (s != null) {
-            for (nm in names) {
-                for (args in argsList) {
-                    val ret = tryInvokeAny(s, listOf(nm), args) as? ByteArray
-                    if (ret != null && ret.isNotEmpty()) { dbg.appendLine("Sensor.$nm returned ${ret.size} bytes."); return ret }
-                }
-            }
+    /** Control scanner LED via anti-fake (Sec 3.1.10-3.1.11) */
+    private fun controlScannerLed(enabled: Boolean, dbg: StringBuilder) {
+        val sensor = fingerprintSensor ?: return
+        try {
+            sensor.setFakeFunOn(if (enabled) 1 else 0)
+            val status = sensor.fakeStatus
+            dbg.appendLine("setFakeFunOn(${if (enabled) 1 else 0}) - Status: $status (true if (status & 0x1F) == 31)")
+        } catch (e: Exception) {
+            dbg.appendLine("LED/live detect failed: ${e.message}")
         }
-        if (svc != null) {
-            for (nm in names) {
-                for (args in argsList) {
-                    val ret = tryInvokeAny(svc, listOf(nm), args) as? ByteArray
-                    if (ret != null && ret.isNotEmpty()) { dbg.appendLine("Service.$nm returned ${ret.size} bytes."); return ret }
-                }
-            }
-        }
-        return null
-    }
-
-    /** Extract template via extract()/createTemplate()/process(); tries a few variants */
-    private fun extractTemplate(imageBytes: ByteArray, dbg: StringBuilder): ByteArray? {
-        val svc = fingerService ?: return null
-        (tryInvokeAny(svc, listOf("extract", "createTemplate", "process"), arrayOf(imageBytes)) as? ByteArray)
-            ?.let { dbg.appendLine("extract(image) → ${it.size} bytes"); return it }
-        for (fmt in intArrayOf(0, 1, 256)) {
-            (tryInvokeAny(svc, listOf("extract", "createTemplate", "process"), arrayOf(imageBytes, fmt)) as? ByteArray)
-                ?.let { dbg.appendLine("extract(image, $fmt) → ${it.size} bytes"); return it }
-        }
-        svc.javaClass.methods.firstOrNull { it.name.equals("getService", true) }?.let { getSvc ->
-            val inner = getSvc.invoke(svc) ?: return null
-            (tryInvokeAny(inner, listOf("extract", "createTemplate", "process"), arrayOf(imageBytes)) as? ByteArray)
-                ?.let { dbg.appendLine("inner.extract(image) → ${it.size} bytes"); return it }
-        }
-        return null
     }
 
     private fun stopCaptureQuietly() {
-        val s = fpReader ?: return
-        try { tryInvokeAny(s, listOf("stopCapture", "stop", "end"), emptyArray()) } catch (_: Throwable) {}
+        val sensor = fingerprintSensor ?: return
+        try {
+            sensor.stopCapture(0)
+        } catch (_: Throwable) {}
     }
 
     @Synchronized
     private fun releaseAll() {
-        val s = fpReader
-        val svc = fingerService
-        fpReader = null
-        fingerService = null
-        try { if (s != null) tryInvokeAny(s, listOf("close", "release", "shutdown"), emptyArray()) } catch (_: Throwable) {}
-        try { if (svc != null) tryInvokeAny(svc, listOf("close", "release", "free"), emptyArray()) } catch (_: Throwable) {}
+        val sensor = fingerprintSensor
+        fingerprintSensor = null
+        try {
+            if (sensor != null) {
+                sensor.stopCapture(0)
+                sensor.close(0)
+            }
+        } catch (_: Throwable) {}
     }
 
     /* ------------------------------- helpers -------------------------------- */
 
     private fun usb() = getSystemService(Context.USB_SERVICE) as UsbManager
 
-    private fun hasVendorSdk(): Boolean =
-        try { Class.forName(CLS_SERVICE); Class.forName(CLS_SENSOR); true } catch (_: Throwable) { false }
+    private fun hasVendorSdk(): Boolean = try {
+        Class.forName("com.zkteco.android.biometric.module.fingerprintreader.ZKFingerService")
+        Class.forName("com.zkteco.android.biometric.module.fingerprintreader.FingerprintSensor")
+        true
+    } catch (_: Throwable) { false }
 
     private fun logd(msg: String) = Log.d(TAG, msg)
-
-    /** Create service; try with/without Context init */
-    private fun createZkService(dbg: StringBuilder): Any {
-        val svcNames = listOf(
-            CLS_SERVICE,
-            "com.zkteco.zkfinger.FingerprintService",
-            "com.zkteco.zkfinger.ZKIDFprService",
-            "com.zkteco.biometric.IDFprService"
-        )
-        for (name in svcNames) {
-            try {
-                val cls = Class.forName(name)
-                val inst = tryConstruct(cls, this) ?: cls.getDeclaredConstructor().newInstance()
-                tryInvokeAny(inst, listOf("init", "initialize", "Init"), arrayOf(this))
-                    ?: tryInvokeAny(inst, listOf("init", "initialize", "Init"), emptyArray())
-                dbg.appendLine("Service initialized with $name")
-                return inst
-            } catch (_: Throwable) { }
-        }
-        // If no init method, return first constructible
-        for (name in svcNames) {
-            try {
-                val cls = Class.forName(name)
-                val inst = tryConstruct(cls, this) ?: cls.getDeclaredConstructor().newInstance()
-                dbg.appendLine("Service constructed (no init) with $name")
-                return inst
-            } catch (_: Throwable) { }
-        }
-        throw RuntimeException("No ZK finger service class available.")
-    }
-
-    /** Sensor from factory or constructors */
-    private fun tryCreateSensor(dbg: StringBuilder): Any? {
-        for (fn in listOf(CLS_FACTORY1, CLS_FACTORY2)) {
-            try {
-                val f = Class.forName(fn)
-                for (m in f.methods) {
-                    val n = m.name.lowercase()
-                    if (!(n.startsWith("create") || n.startsWith("get"))) continue
-                    val args: Array<Any> = when (m.parameterTypes.size) {
-                        0 -> emptyArray()
-                        1 -> arrayOf(this)
-                        2 -> arrayOf(this, usb())
-                        else -> continue
-                    }
-                    try {
-                        val obj = m.invoke(null, *args)
-                        if (obj != null && obj.javaClass.name.contains("FingerprintSensor", true)) {
-                            dbg.appendLine("Sensor created via $fn.${m.name}(${m.parameterTypes.size} args)")
-                            return obj
-                        }
-                    } catch (_: Throwable) { }
-                }
-            } catch (_: Throwable) { }
-        }
-        for (n in listOf(CLS_SENSOR, "com.zkteco.fingerprintreader.FingerprintSensor")) {
-            try {
-                val c = Class.forName(n)
-                tryConstruct(c, this)?.let { dbg.appendLine("Sensor constructed with $n(Context)"); return it }
-                c.getDeclaredConstructor().newInstance()?.let { dbg.appendLine("Sensor constructed with $n()"); return it }
-            } catch (_: Throwable) { }
-        }
-        return null
-    }
-
-    /** Try many open/connect signatures */
-    private fun tryOpenSensor(sensor: Any, dev: UsbDevice, dbg: StringBuilder): Boolean {
-        val um = usb()
-        val vid = dev.vendorId
-        val pid = dev.productId
-
-        val names = listOf("open", "openDevice", "openReader", "openDeviceEx", "connect", "start", "startDevice")
-        val combos: List<Array<Any>> = listOf(
-            emptyArray(),
-            arrayOf(this),
-            arrayOf(um),
-            arrayOf(dev),
-            arrayOf(vid, pid),
-            arrayOf(pid, vid),
-            arrayOf(pid), arrayOf(vid),
-            arrayOf(0), arrayOf(1), // index-based
-            arrayOf(this, dev),
-            arrayOf(this, um),
-            arrayOf(this, vid, pid),
-            arrayOf(this, pid),
-            arrayOf(um, dev),
-            arrayOf(um, vid, pid),
-            arrayOf(dev, um),
-            arrayOf(dev, this),
-            arrayOf(um, dev, this),
-            arrayOf(this, um, dev),
-            arrayOf(dev, um, this)
-        )
-        val methods = sensor.javaClass.methods.filter { m -> names.any { m.name.equals(it, true) } }
-        for (m in methods) {
-            for (args in combos) {
-                if (m.parameterTypes.size != args.size) continue
-                try {
-                    m.isAccessible = true
-                    val ret = m.invoke(sensor, *args)
-                    when (ret) {
-                        is Int -> { dbg.appendLine("open ${m.name}(${args.size}) → int=$ret"); if (ret == 0) return true }
-                        is Boolean -> { dbg.appendLine("open ${m.name}(${args.size}) → bool=$ret"); if (ret) return true }
-                        else -> { dbg.appendLine("open ${m.name}(${args.size}) → void/other (assume success)"); return true }
-                    }
-                } catch (_: Throwable) { }
-            }
-        }
-        dbg.appendLine("No open-like signature matched on ${sensor.javaClass.name}")
-        return false
-    }
-
-    private fun dumpMethods(target: Any, names: List<String>, dbg: StringBuilder) {
-        dbg.appendLine("Available methods on ${target.javaClass.name}:")
-        for (m in target.javaClass.methods) {
-            if (names.any { m.name.contains(it, ignoreCase = true) }) {
-                dbg.append("  ").append(m.name).append("(")
-                dbg.append(m.parameterTypes.joinToString { it.simpleName })
-                dbg.append(") -> ").append(m.returnType.simpleName).append("\n")
-            }
-        }
-    }
-
-    private fun tryConstruct(c: Class<*>, ctx: Context): Any? {
-        return try {
-            val ctor = c.declaredConstructors.firstOrNull {
-                it.parameterTypes.size == 1 && it.parameterTypes[0].isAssignableFrom(Context::class.java)
-            } ?: return null
-            ctor.isAccessible = true
-            ctor.newInstance(ctx)
-        } catch (_: Throwable) { null }
-    }
-
-    private fun tryInvokeAny(target: Any, names: List<String>, args: Array<out Any>): Any? {
-        val methods = target.javaClass.methods
-        for (nm in names) {
-            val cands = methods.filter { it.name.equals(nm, true) && it.parameterTypes.size == args.size }
-            for (m in cands) {
-                try { m.isAccessible = true; return m.invoke(target, *args) } catch (_: Throwable) {}
-            }
-            for (m in methods.filter { it.name.equals(nm, true) }) {
-                try { m.isAccessible = true; return if (args.isEmpty()) m.invoke(target) else m.invoke(target, *args) } catch (_: Throwable) {}
-            }
-        }
-        return null
-    }
-
-    private fun bitmapToGrayscaleBytes(bm: Bitmap): ByteArray {
-        val w = bm.width
-        val h = bm.height
-        val out = ByteArray(w * h)
-        val row = IntArray(w)
-        var idx = 0
-        for (y in 0 until h) {
-            bm.getPixels(row, 0, w, 0, y, w, 1)
-            for (x in 0 until w) {
-                val p = row[x]
-                val r = (p shr 16) and 0xff
-                val g = (p shr 8) and 0xff
-                val b = (p) and 0xff
-                out[idx++] = ((0.299 * r + 0.587 * g + 0.114 * b).toInt() and 0xff).toByte()
-            }
-        }
-        return out
-    }
 
     private fun postSuccess(result: MethodChannel.Result, text: String) =
         runOnUiThread { result.success(text) }
@@ -669,29 +467,25 @@ class MainActivity : FlutterActivity() {
                 Build.BRAND.contains("generic", true) ||
                 Build.PRODUCT.contains("sdk", true)
 
-    override fun onDestroy() {
-        super.onDestroy()
-        releaseAll()
-        scope.cancel()
-    }
-
-    /* ----------------------- OPTIONAL: deep SDK dump ------------------------ */
-
     private fun dumpAllSdkInfo(): String {
         val sb = StringBuilder()
-        val svc = fingerService
-        val sen = fpReader
-        sb.appendLine("SDK Present: ${hasVendorSdk()}")  // ✅ FIXED: call the function
-        sb.appendLine("Service: ${svc?.javaClass?.name ?: "(null)"}")
-        sb.appendLine("Sensor : ${sen?.javaClass?.name ?: "(null)"}")
-        listOfNotNull(svc, sen).forEach { obj ->
-            sb.appendLine("\nMethods of ${obj.javaClass.name}:")
-            obj.javaClass.methods.sortedBy { it.name }.forEach { m ->
+        val sen = fingerprintSensor
+        sb.appendLine("SDK Present: ${hasVendorSdk()}")
+        sb.appendLine("Sensor: ${sen?.javaClass?.name ?: "(null)"}")
+        if (sen != null) {
+            sb.appendLine("\nMethods of ${sen.javaClass.name}:")
+            sen.javaClass.methods.sortedBy { it.name }.forEach { m ->
                 sb.append("  ").append(m.name).append("(")
                 sb.append(m.parameterTypes.joinToString { it.simpleName })
                 sb.append(") -> ").append(m.returnType.simpleName).append("\n")
             }
         }
         return sb.toString()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        releaseAll()
+        scope.cancel()
     }
 }

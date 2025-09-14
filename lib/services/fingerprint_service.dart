@@ -1,24 +1,40 @@
-import 'dart:typed_data';
 import 'package:flutter/services.dart';
 
 class FingerprintService {
-  static const _channel = MethodChannel('com.legendit.zkteco');
+  static const _channel = MethodChannel("com.legendit.zkteco");
 
+  /// 🔹 USB ডিভাইস ডায়াগনসিস
   Future<Map<String, dynamic>> diagnoseUsb() async {
-    final res = await _channel.invokeMapMethod<String, dynamic>('diagnoseUsb');
-    return (res ?? <String, dynamic>{});
+    final m = await _channel.invokeMethod<Map>('diagnoseUsb');
+    if (m == null) return {};
+    return Map<String, dynamic>.from(m);
   }
 
-  /// Starts native capture. Returns Base64 template on success.
-  /// Throws PlatformException(code, message) on failure.
+  /// 🔹 ফিঙ্গারপ্রিন্ট স্ক্যান → সরাসরি Base64 template string return করবে
   Future<String> scanFingerprint() async {
-    final tpl = await _channel.invokeMethod<String>('scanFingerprint');
-    if (tpl == null || tpl.isEmpty) {
-      throw PlatformException(
-        code: 'EMPTY_TEMPLATE',
-        message: 'No template returned from native layer.',
-      );
+    try {
+      final String base64Template =
+          await _channel.invokeMethod<String>('scanFingerprint') ?? '';
+      print("Template: $base64Template");
+      return base64Template;
+    } on PlatformException catch (e) {
+      throw Exception("Scan failed: ${e.code} - ${e.message}");
     }
-    return tpl;
+  }
+
+  /// 🔹 LED ON
+  Future<void> ledOn() async {
+    await _channel.invokeMethod('ledOn');
+  }
+
+  /// 🔹 LED OFF
+  Future<void> ledOff() async {
+    await _channel.invokeMethod('ledOff');
+  }
+
+  /// 🔹 Debug dump
+  Future<String> dumpSdk() async {
+    final s = await _channel.invokeMethod<String>('dumpSdk');
+    return s ?? '';
   }
 }

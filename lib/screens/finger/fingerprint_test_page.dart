@@ -11,15 +11,20 @@ class FingerprintTestPage extends StatefulWidget {
 
 class _FingerprintTestPageState extends State<FingerprintTestPage> {
   final _svc = FingerprintService();
+
   String _log = 'Ready';
   String? _template;
 
   void _append(String line) {
-    setState(() => _log = '$_log\n$line');
+    final ts = DateTime.now().toIso8601String();
+    setState(() => _log = '$_log\n[$ts] $line');
   }
 
   Future<void> _diagnose() async {
-    setState(() { _log = 'Diagnosing...'; _template = null; });
+    setState(() {
+      _log = 'Diagnosing...';
+      _template = null;
+    });
     try {
       final m = await _svc.diagnoseUsb();
       _append('USB Devices: ${m['devices']}');
@@ -34,47 +39,71 @@ class _FingerprintTestPageState extends State<FingerprintTestPage> {
   }
 
   Future<void> _scan() async {
-    setState(() {
-      _log = '🟢 READY - Place finger on scanner NOW!\n\n' +
-          '• Press FIRMLY on the center\n' +
-          '• Cover the entire sensor surface\n' +
-          '• Keep finger STILL for 2 seconds\n' +
-          '• Wait for beep/light feedback\n\n' +
-          'Scanning in 2 seconds...';
-      _template = null;
-    });
+    print("[UI] _scan() called");
 
-    await Future.delayed(Duration(seconds: 2));
+    try {
+      await _svc.ledOn();
+      _append('💡 LED ON - Scanner ready');
 
-    for (int attempt = 1; attempt <= 3; attempt++) {
-      try {
-        _append('\n=== Attempt $attempt ===');
-        _append('Scanning... (keep finger pressed)');
+      setState(() {
+        _log = '🟢 READY - Place finger on scanner NOW!\n\n'
+            '• Press FIRMLY on the center\n'
+            '• Cover the entire sensor surface\n'
+            '• Keep finger STILL for 2 seconds\n'
+            '• Wait for beep/light feedback\n\n'
+            'Scanning in 2 seconds...';
+        _template = null;
+      });
 
-        final tpl = await _svc.scanFingerprint();
+      await Future.delayed(const Duration(seconds: 2));
 
-        setState(() {
-          _template = tpl;
-          _append('✅ SUCCESS! Template captured (${tpl.length} bytes)');
-        });
-        return;
+      for (int attempt = 1; attempt <= 3; attempt++) {
+        print("[UI] Starting attempt $attempt");
 
-      } on PlatformException catch (e) {
-        if (e.code == 'CAPTURE_EMPTY') {
-          _append('❌ No fingerprint detected. Please:');
-          _append('   • Press HARDER and center finger');
-          _append('   • Try a DIFFERENT finger');
-          _append('   • Ensure finger is CLEAN and DRY');
-          await Future.delayed(Duration(seconds: 2));
-        } else {
-          _append('❌ Error: ${e.code} - ${e.message}');
+        try {
+          _append('\n=== Attempt $attempt ===');
+          _append('Scanning... (keep finger pressed)');
+
+          // 🔹 এখন service থেকে সরাসরি String আসবে
+          final tpl = await _svc.scanFingerprint();
+          print("[UI] Attempt $attempt: Template length = ${tpl.length}");
+
+          setState(() {
+            _template = tpl;
+            _append('✅ SUCCESS! Template captured (${tpl.length} chars)');
+          });
+
+          await _svc.ledOff();
+          _append('💡 LED OFF - Scan complete');
+          return;
+        } on PlatformException catch (e) {
+          print("[UI] Attempt $attempt: PlatformException: ${e.code} - ${e.message}");
+
+          if (e.code == 'CAPTURE_EMPTY' || e.code == 'EMPTY_TEMPLATE') {
+            _append('❌ No fingerprint detected. Please:');
+            _append('   • Press HARDER and center finger');
+            _append('   • Try a DIFFERENT finger');
+            _append('   • Ensure finger is CLEAN and DRY');
+            await Future.delayed(const Duration(seconds: 2));
+          } else {
+            _append('❌ Error: ${e.code} - ${e.message}');
+            break;
+          }
+        } catch (e, st) {
+          print("[UI] Attempt $attempt: Unexpected error: $e\n$st");
+          _append('❌ Unexpected error: $e');
           break;
         }
       }
-    }
 
-    _append('\n💡 TIPS: Clean sensor, use thumb/index, firm pressure');
-    _append('🔧 Check USB connection and try again');
+      _append('\n💡 TIPS: Clean sensor, use thumb/index, firm pressure');
+      _append('🔧 Check USB connection and try again');
+    } finally {
+      try {
+        await _svc.ledOff();
+        _append('💡 LED OFF - Scan ended');
+      } catch (_) {}
+    }
   }
 
   @override
@@ -90,7 +119,10 @@ class _FingerprintTestPageState extends State<FingerprintTestPage> {
               ElevatedButton(onPressed: _scan, child: const Text('Scan Finger')),
             ]),
             const SizedBox(height: 12),
-            const Align(alignment: Alignment.centerLeft, child: Text('Log:', style: TextStyle(fontWeight: FontWeight.bold))),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Log:', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
             const SizedBox(height: 8),
             Expanded(
               child: Container(
@@ -105,12 +137,23 @@ class _FingerprintTestPageState extends State<FingerprintTestPage> {
             ),
             if (_template != null) ...[
               const SizedBox(height: 8),
-              const Align(alignment: Alignment.centerLeft, child: Text('Template (Base64):', style: TextStyle(fontWeight: FontWeight.bold))),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Template (Base64):', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
               const SizedBox(height: 6),
-              Expanded(
-                child: SelectableText(
-                  _template!,
-                  maxLines: 6,
+              Container(
+                height: 250,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    _template!,
+                    maxLines: 15,
+                  ),
                 ),
               ),
             ],

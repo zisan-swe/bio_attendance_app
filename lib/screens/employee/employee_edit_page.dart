@@ -5,10 +5,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../models/employee_model.dart';
 import '../../providers/employee_provider.dart';
+import '../../services/fingerprint_service.dart';
 
 class EmployeeEditPage extends StatefulWidget {
   final EmployeeModel employee;
-
   const EmployeeEditPage({Key? key, required this.employee}) : super(key: key);
 
   @override
@@ -17,6 +17,7 @@ class EmployeeEditPage extends StatefulWidget {
 
 class _EmployeeEditPageState extends State<EmployeeEditPage> {
   final _formKey = GlobalKey<FormState>();
+  final _fingerSvc = FingerprintService();
 
   late TextEditingController nameController;
   late TextEditingController emailController;
@@ -30,25 +31,13 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
   late TextEditingController joiningController;
 
   File? _profileImage;
-
-  Map<String, bool> fingerScanStatus = {
-    'Left Thumb': false,
-    'Left Index': false,
-    'Left Middle': false,
-    'Left Ring': false,
-    'Left Little': false,
-    'Right Thumb': false,
-    'Right Index': false,
-    'Right Middle': false,
-    'Right Ring': false,
-    'Right Little': false,
-  };
+  Map<String, String> fingerTemplates = {};
 
   @override
   void initState() {
     super.initState();
-
     final emp = widget.employee;
+
     nameController = TextEditingController(text: emp.name);
     emailController = TextEditingController(text: emp.email);
     codeController = TextEditingController(text: emp.employeeNo);
@@ -61,18 +50,22 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
     joiningController = TextEditingController(text: emp.joiningDate);
     _profileImage = emp.imagePath.isNotEmpty ? File(emp.imagePath) : null;
 
-    // Initialize finger scan values
-    final fingerValues = [
-      emp.fingerInfo1, emp.fingerInfo2, emp.fingerInfo3, emp.fingerInfo4, emp.fingerInfo5,
-      emp.fingerInfo6, emp.fingerInfo7, emp.fingerInfo8, emp.fingerInfo9, emp.fingerInfo10,
-    ];
-
-    fingerScanStatus.updateAll((key, _) => fingerValues.removeAt(0).isNotEmpty);
+    fingerTemplates = {
+      'Left Thumb': emp.fingerInfo1,
+      'Left Index': emp.fingerInfo2,
+      'Left Middle': emp.fingerInfo3,
+      'Left Ring': emp.fingerInfo4,
+      'Left Little': emp.fingerInfo5,
+      'Right Thumb': emp.fingerInfo6,
+      'Right Index': emp.fingerInfo7,
+      'Right Middle': emp.fingerInfo8,
+      'Right Ring': emp.fingerInfo9,
+      'Right Little': emp.fingerInfo10,
+    };
   }
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-
     showModalBottomSheet(
       context: context,
       builder: (_) => SafeArea(
@@ -109,8 +102,20 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
       firstDate: DateTime(1950),
       lastDate: DateTime(2100),
     );
-    if (picked != null) {
-      controller.text = DateFormat('yyyy-MM-dd').format(picked);
+    if (picked != null) controller.text = DateFormat('yyyy-MM-dd').format(picked);
+  }
+
+  Future<void> _scanFinger(String fingerName) async {
+    try {
+      final tpl = await _fingerSvc.scanFingerprint();
+      setState(() => fingerTemplates[fingerName] = tpl);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("✅ $fingerName scanned successfully")),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ $fingerName scan failed: $e")),
+      );
     }
   }
 
@@ -118,14 +123,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
     if (_formKey.currentState!.validate()) {
       final provider = Provider.of<EmployeeProvider>(context, listen: false);
       final emp = widget.employee;
-      final dailyWages = double.tryParse(dailyWagesController.text.trim());
-
-      if (dailyWages == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid Daily Wages')),
-        );
-        return;
-      }
+      final dailyWages = double.tryParse(dailyWagesController.text.trim()) ?? 0.0;
 
       final updated = emp.copyWith(
         name: nameController.text,
@@ -138,16 +136,16 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
         motherName: motherController.text,
         dob: dobController.text,
         joiningDate: joiningController.text,
-        fingerInfo1: fingerScanStatus['Left Thumb']! ? '1' : '',
-        fingerInfo2: fingerScanStatus['Left Index']! ? '1' : '',
-        fingerInfo3: fingerScanStatus['Left Middle']! ? '1' : '',
-        fingerInfo4: fingerScanStatus['Left Ring']! ? '1' : '',
-        fingerInfo5: fingerScanStatus['Left Little']! ? '1' : '',
-        fingerInfo6: fingerScanStatus['Right Thumb']! ? '1' : '',
-        fingerInfo7: fingerScanStatus['Right Index']! ? '1' : '',
-        fingerInfo8: fingerScanStatus['Right Middle']! ? '1' : '',
-        fingerInfo9: fingerScanStatus['Right Ring']! ? '1' : '',
-        fingerInfo10: fingerScanStatus['Right Little']! ? '1' : '',
+        fingerInfo1: fingerTemplates['Left Thumb'] ?? '',
+        fingerInfo2: fingerTemplates['Left Index'] ?? '',
+        fingerInfo3: fingerTemplates['Left Middle'] ?? '',
+        fingerInfo4: fingerTemplates['Left Ring'] ?? '',
+        fingerInfo5: fingerTemplates['Left Little'] ?? '',
+        fingerInfo6: fingerTemplates['Right Thumb'] ?? '',
+        fingerInfo7: fingerTemplates['Right Index'] ?? '',
+        fingerInfo8: fingerTemplates['Right Middle'] ?? '',
+        fingerInfo9: fingerTemplates['Right Ring'] ?? '',
+        fingerInfo10: fingerTemplates['Right Little'] ?? '',
         imagePath: _profileImage?.path ?? '',
       );
 
@@ -171,35 +169,19 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
     );
   }
 
-  Widget _buildFieldPhone(
-      String label,
-      TextEditingController controller,
-      IconData icon, {
-        bool isRequired = true,
-        bool isPhone = false,
-      }) {
+  Widget _buildFieldPhone(String label, TextEditingController controller, IconData icon) {
     return TextFormField(
       controller: controller,
-      keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
-      maxLength: isPhone ? 11 : null,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        border: const OutlineInputBorder(),
-        counterText: '', // optionally hide the character counter
-      ),
+      keyboardType: TextInputType.phone,
+      maxLength: 11,
+      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon), border: const OutlineInputBorder(), counterText: ''),
       validator: (value) {
-        if (isRequired && (value == null || value.trim().isEmpty)) {
-          return 'Enter $label';
-        }
-        if (isPhone && value != null && !RegExp(r'^\d{11}$').hasMatch(value)) {
-          return 'Phone number must be exactly 11 digits';
-        }
+        if (value == null || value.trim().isEmpty) return 'Enter $label';
+        if (!RegExp(r'^\d{11}$').hasMatch(value)) return 'Phone number must be 11 digits';
         return null;
       },
     );
   }
-
 
   Widget _buildDateField(String label, TextEditingController controller) {
     return TextFormField(
@@ -215,16 +197,16 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
     );
   }
 
-  Widget _buildFingerButton(String label) {
-    final isScanned = fingerScanStatus[label] ?? false;
+  Widget _buildFingerButton(String fingerName) {
+    final isScanned = (fingerTemplates[fingerName]?.isNotEmpty ?? false);
     return ElevatedButton(
-      onPressed: () => setState(() => fingerScanStatus[label] = !isScanned),
+      onPressed: () => _scanFinger(fingerName),
       style: ElevatedButton.styleFrom(
+        minimumSize: const Size(130, 40),
         backgroundColor: isScanned ? Colors.green : Colors.grey[300],
         foregroundColor: isScanned ? Colors.white : Colors.black,
-        minimumSize: const Size(130, 40),
       ),
-      child: Text(label.split(' ').last),
+      child: Text(fingerName.split(' ').last),
     );
   }
 
@@ -232,7 +214,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Biometric Fingers', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        const Text('Biometric Fingers', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 10),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -258,19 +240,15 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
               ],
             ),
           ],
-        )
+        ),
       ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width > 600;
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Employee'),
-        backgroundColor: Colors.blueGrey,
-      ),
+      appBar: AppBar(title: const Text('Edit Employee'), backgroundColor: Colors.blueGrey),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -295,9 +273,9 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
               const SizedBox(height: 12),
               _buildField('Employee NID', nidController, Icons.badge),
               const SizedBox(height: 12),
-              _buildField('Employee Daily Wages', dailyWagesController, Icons.badge),
+              _buildField('Employee Daily Wages', dailyWagesController, Icons.attach_money),
               const SizedBox(height: 12),
-              _buildFieldPhone('Phone', phoneController, Icons.phone, isPhone: true),
+              _buildFieldPhone('Phone', phoneController, Icons.phone),
               const SizedBox(height: 12),
               _buildField('Father\'s Name', fatherController, Icons.person),
               const SizedBox(height: 12),
@@ -316,7 +294,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
                   icon: const Icon(Icons.update),
                   label: const Text('Update Employee'),
                 ),
-              )
+              ),
             ],
           ),
         ),

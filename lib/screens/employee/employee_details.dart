@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../models/employee_model.dart';
 
 class EmployeeDetailsPage extends StatelessWidget {
@@ -32,75 +31,88 @@ class EmployeeDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildFingerStatus(String label, bool isScanned) {
-    return ElevatedButton(
-      onPressed: null,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isScanned ? Colors.green : Colors.grey[300],
-        foregroundColor: isScanned ? Colors.white : Colors.black,
-        minimumSize: const Size(130, 40),
+  Widget _buildFingerBase64(String label, String base64Data) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ElevatedButton(
+            onPressed: null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: base64Data.isNotEmpty ? Colors.green : Colors.grey[300],
+              foregroundColor: base64Data.isNotEmpty ? Colors.white : Colors.black,
+              minimumSize: const Size(130, 40),
+            ),
+            child: Text(label.split(' ').last),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade400),
+              borderRadius: BorderRadius.circular(4),
+              color: Colors.grey.shade100,
+            ),
+            constraints: const BoxConstraints(maxHeight: 80),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.vertical,
+              child: Text(
+                base64Data.isNotEmpty ? base64Data : 'Not Captured',
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+          ),
+        ],
       ),
-      child: Text(label.split(' ').last),
     );
   }
 
-  // Widget _buildBiometricSection(EmployeeModel emp) {
-  //   final fingerValues = [
-  //     emp.fingerInfo1, emp.fingerInfo2, emp.fingerInfo3, emp.fingerInfo4, emp.fingerInfo5,
-  //     emp.fingerInfo6, emp.fingerInfo7, emp.fingerInfo8, emp.fingerInfo9, emp.fingerInfo10,
-  //   ];
-  //
-  //   final fingerNames = [
-  //     'Left Thumb', 'Left Index', 'Left Middle', 'Left Ring', 'Left Little',
-  //     'Right Thumb', 'Right Index', 'Right Middle', 'Right Ring', 'Right Little',
-  //   ];
-  //
-  //   final Map<String, bool> fingerScanStatus = {
-  //     for (int i = 0; i < fingerNames.length; i++) fingerNames[i]: fingerValues[i].isNotEmpty
-  //   };
-  //
-  //   return Column(
-  //     crossAxisAlignment: CrossAxisAlignment.start,
-  //     children: [
-  //       const Text('Biometric Fingers', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-  //       const SizedBox(height: 10),
-  //       Row(
-  //         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-  //         children: [
-  //           Column(
-  //             children: [
-  //               const Text('Left Hand'),
-  //               _buildFingerStatus('Left Thumb', fingerScanStatus['Left Thumb']!),
-  //               _buildFingerStatus('Left Index', fingerScanStatus['Left Index']!),
-  //               _buildFingerStatus('Left Middle', fingerScanStatus['Left Middle']!),
-  //               _buildFingerStatus('Left Ring', fingerScanStatus['Left Ring']!),
-  //               _buildFingerStatus('Left Little', fingerScanStatus['Left Little']!),
-  //             ],
-  //           ),
-  //           Column(
-  //             children: [
-  //               const Text('Right Hand'),
-  //               _buildFingerStatus('Right Thumb', fingerScanStatus['Right Thumb']!),
-  //               _buildFingerStatus('Right Index', fingerScanStatus['Right Index']!),
-  //               _buildFingerStatus('Right Middle', fingerScanStatus['Right Middle']!),
-  //               _buildFingerStatus('Right Ring', fingerScanStatus['Right Ring']!),
-  //               _buildFingerStatus('Right Little', fingerScanStatus['Right Little']!),
-  //             ],
-  //           ),
-  //         ],
-  //       )
-  //     ],
-  //   );
-  // }
+  Widget _buildBiometricSection(EmployeeModel emp) {
+    final leftFingers = [
+      'Left Thumb', 'Left Index', 'Left Middle', 'Left Ring', 'Left Little'
+    ];
+    final rightFingers = [
+      'Right Thumb', 'Right Index', 'Right Middle', 'Right Ring', 'Right Little'
+    ];
+
+    final leftValues = [
+      emp.fingerInfo1, emp.fingerInfo2, emp.fingerInfo3, emp.fingerInfo4, emp.fingerInfo5
+    ];
+    final rightValues = [
+      emp.fingerInfo6, emp.fingerInfo7, emp.fingerInfo8, emp.fingerInfo9, emp.fingerInfo10
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Biometric Fingers', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        const SizedBox(height: 10),
+        Column(
+          children: List.generate(5, (index) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildFingerBase64(leftFingers[index], leftValues[index]),
+                  const SizedBox(width: 16),
+                  _buildFingerBase64(rightFingers[index], rightValues[index]),
+                ],
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final emp = employee;
-    final wide = MediaQuery.of(context).size.width > 600;
 
     return Scaffold(
       appBar: AppBar(
-          title: const Text('Employee Details'),
+        title: const Text('Employee Details'),
         backgroundColor: Colors.blueGrey,
       ),
       body: SingleChildScrollView(
@@ -134,7 +146,7 @@ class EmployeeDetailsPage extends StatelessWidget {
             const SizedBox(height: 12),
             _buildReadOnlyDate('Joining Date', emp.joiningDate),
             const SizedBox(height: 20),
-            // _buildBiometricSection(emp),
+            _buildBiometricSection(emp),
           ],
         ),
       ),

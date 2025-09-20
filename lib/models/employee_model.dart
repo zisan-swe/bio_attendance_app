@@ -51,30 +51,46 @@ class EmployeeModel {
 
   factory EmployeeModel.fromMap(Map<String, dynamic> map) {
     return EmployeeModel(
-      id: map['id'],
-      name: map['name'] ?? '',
-      email: map['email'] ?? '',
-      employeeNo: map['employee_no'] ?? '',
-      nid: map['nid'] ?? '',
+      id: map['id'] as int?,
+      name: map['name'] as String? ?? '',
+      email: map['email'] as String? ?? '',
+      employeeNo: map['employee_no'] as String? ?? '',
+      nid: map['nid'] as String? ?? '',
       dailyWages: (map['daily_wages'] as num?)?.toDouble() ?? 0.0,
-      phone: map['phone'] ?? '',
-      fatherName: map['father_name'] ?? '',
-      motherName: map['mother_name'] ?? '',
-      dob: map['dob'] ?? '',
-      joiningDate: map['joining_date'] ?? '',
-      employeeType: map['employee_type'] ?? 1,
-      fingerInfo1: map['finger_info1'] ?? '',
-      fingerInfo2: map['finger_info2'] ?? '',
-      fingerInfo3: map['finger_info3'] ?? '',
-      fingerInfo4: map['finger_info4'] ?? '',
-      fingerInfo5: map['finger_info5'] ?? '',
-      fingerInfo6: map['finger_info6'] ?? '',
-      fingerInfo7: map['finger_info7'] ?? '',
-      fingerInfo8: map['finger_info8'] ?? '',
-      fingerInfo9: map['finger_info9'] ?? '',
-      fingerInfo10: map['finger_info10'] ?? '',
-      imagePath: map['image_path'] ?? '',
+      phone: map['phone'] as String? ?? '',
+      fatherName: map['father_name'] as String? ?? '',
+      motherName: map['mother_name'] as String? ?? '',
+      dob: map['dob'] as String? ?? '',
+      joiningDate: map['joining_date'] as String? ?? '',
+      employeeType: map['employee_type'] as int? ?? 1,
+      fingerInfo1: map['finger_info1'] as String? ?? '',
+      fingerInfo2: map['finger_info2'] as String? ?? '',
+      fingerInfo3: map['finger_info3'] as String? ?? '',
+      fingerInfo4: map['finger_info4'] as String? ?? '',
+      fingerInfo5: map['finger_info5'] as String? ?? '',
+      fingerInfo6: map['finger_info6'] as String? ?? '',
+      fingerInfo7: map['finger_info7'] as String? ?? '',
+      fingerInfo8: map['finger_info8'] as String? ?? '',
+      fingerInfo9: map['finger_info9'] as String? ?? '',
+      fingerInfo10: map['finger_info10'] as String? ?? '',
+      imagePath: map['image_path'] as String? ?? '',
     );
+  }
+
+  /// Getter for fingerprints map (finger name to Base64 template)
+  Map<String, String> get fingerprints {
+    return {
+      'Left Thumb': fingerInfo1,
+      'Right Thumb': fingerInfo2,
+      'Left Index': fingerInfo3,
+      'Right Index': fingerInfo4,
+      'Left Middle': fingerInfo5,
+      'Right Middle': fingerInfo6,
+      'Left Ring': fingerInfo7,
+      'Right Ring': fingerInfo8,
+      'Left Little': fingerInfo9,
+      'Right Little': fingerInfo10,
+    }..removeWhere((key, value) => value.isEmpty); // Remove empty templates
   }
 
   Map<String, dynamic> toMap() {
@@ -104,6 +120,7 @@ class EmployeeModel {
       'image_path': imagePath,
     };
   }
+
   // ✅ Added copyWith method
   EmployeeModel copyWith({
     int? id,
@@ -156,5 +173,4 @@ class EmployeeModel {
       imagePath: imagePath ?? this.imagePath,
     );
   }
-
 }

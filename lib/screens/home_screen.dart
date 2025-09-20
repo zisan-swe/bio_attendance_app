@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'attendance/attendance_list_page.dart';
 import 'enroll_screen.dart';
 import 'finger/fingerprint_page.dart';
 import 'finger/fingerprint_test_page.dart';
@@ -131,7 +132,7 @@ class HomeScreen extends StatelessWidget {
                 // height: 70,
                 child: _buildButton(
                   context: context,
-                  label: 'Enroll Worker',
+                  label: 'Finger Test',
                   icon: Icons.fingerprint,
                   destination: FingerprintTestPage(),
                   color: Colors.orange,
@@ -145,6 +146,16 @@ class HomeScreen extends StatelessWidget {
                   icon: Icons.check_circle_outline,
                   destination: AttendancePage(),
                   color: Colors.blueAccent,
+                ),
+              ),
+              SizedBox(
+                width: 250,
+                child: _buildButton(
+                  context: context,
+                  label: 'Attendance List',
+                   icon: Icons.list_alt,
+                  destination: AttendanceListPage(),
+                  color: Colors.teal,
                 ),
               ),
             ],

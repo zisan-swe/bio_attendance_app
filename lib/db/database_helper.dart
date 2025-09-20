@@ -2,6 +2,9 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/employee_model.dart';
 import '../models/attendance_model.dart';
+import 'dart:convert'; // For base64Encode / base64Decode (if needed)
+import 'dart:developer' as dev; // For debug logging
+import '../../services/fingerprint_service.dart'; // Assume this integrates with ZKFinger SDK
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -11,10 +14,6 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null && _database!.isOpen) return _database!;
-
-    // Don't delete database every time — only during development if you want.
-    //  await deleteDatabase(join(await getDatabasesPath(), 'biometric.db'));
-
     _database = await _initDB('biometric.db');
     return _database!;
   }
@@ -31,14 +30,14 @@ class DatabaseHelper {
     );
   }
 
-  Future _createDB(Database db, int version) async {
+  Future<void> _createDB(Database db, int version) async {
     // Employee table
     await db.execute('''
       CREATE TABLE employee (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
+        name TEXT NOT NULL,
         email TEXT,
-        employee_no TEXT,
+        employee_no TEXT NOT NULL,
         nid TEXT,
         daily_wages DOUBLE,
         phone TEXT,
@@ -46,7 +45,7 @@ class DatabaseHelper {
         mother_name TEXT,
         dob TEXT,
         joining_date TEXT,
-        employee_type INTEGER,
+        employee_type INTEGER NOT NULL,
         finger_info1 TEXT,
         finger_info2 TEXT,
         finger_info3 TEXT,
@@ -65,54 +64,41 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE attendance (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        device_id TEXT,
-        project_id INTEGER,
-        block_id INTEGER,
-        employee_no TEXT,
-        working_date TEXT,
-        attendance_status TEXT,
-        fingerprint TEXT,
+        device_id TEXT NOT NULL,
+        project_id INTEGER NOT NULL,
+        block_id INTEGER NOT NULL,
+        employee_no TEXT NOT NULL,
+        working_date TEXT NOT NULL,
+        attendance_status TEXT NOT NULL,
+        fingerprint TEXT NOT NULL,
         in_time TEXT,
         out_time TEXT,
-        location TEXT,          -- renamed from check_out_location to location
-        status INTEGER,
+        location TEXT,
+        status INTEGER NOT NULL,
         remarks TEXT,
-        create_at TEXT,
-        update_at TEXT          -- fixed typo from update_ad to update_at
+        create_at TEXT NOT NULL,
+        update_at TEXT NOT NULL
       )
     ''');
   }
+
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 10) {
       final result = await db.rawQuery("PRAGMA table_info(attendance)");
-      final columns = result.map((row) => row['name']).toList();
-      // final columns = result.map((row) => row['name']?.toString()).whereType<String>().toList();
-
+      final columns = result.map((row) => row['name'] as String?).whereType<String>().toList();
 
       if (!columns.contains('fingerprint')) {
-        await db.execute('ALTER TABLE attendance ADD COLUMN fingerprint TEXT');
+        await db.execute('ALTER TABLE attendance ADD COLUMN fingerprint TEXT NOT NULL DEFAULT ""');
       }
     }
   }
 
   // Employee CRUD operations
-
   Future<int> insertEmployee(EmployeeModel employee) async {
     final db = await instance.database;
     return await db.insert('employee', employee.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+        conflictAlgorithm: ConflictAlgorithm.replace);
   }
-
-  // Future<List<EmployeeModel>> getAllEmployees() async {
-  //   final db = await instance.database;
-  //   final result = await db.query(
-  //     'employee',
-  //     where: 'employee_type = ?',
-  //     whereArgs: [1],
-  //   );
-  //   return result.map((e) => EmployeeModel.fromMap(e)).toList();
-  // }
 
   Future<List<EmployeeModel>> getAllEmployees({required int employeeType}) async {
     final db = await instance.database;
@@ -123,7 +109,6 @@ class DatabaseHelper {
     );
     return result.map((e) => EmployeeModel.fromMap(e)).toList();
   }
-
 
   Future<int> updateEmployee(EmployeeModel employee) async {
     final db = await instance.database;
@@ -156,11 +141,11 @@ class DatabaseHelper {
   }
 
   // Attendance CRUD
-
   Future<int> insertAttendance(AttendanceModel attendance) async {
     final db = await instance.database;
     return await db.insert('attendance', attendance.toMap());
   }
+
   Future<int> deleteAttendance(int id) async {
     final db = await instance.database;
     return await db.delete('attendance', where: 'id = ?', whereArgs: [id]);
@@ -176,11 +161,61 @@ class DatabaseHelper {
     );
   }
 
-
-  Future close() async {
+  Future<void> close() async {
     if (_database != null && _database!.isOpen) {
       await _database!.close();
       _database = null;
     }
   }
+
+  // Fingerprint matching
+  Future<EmployeeModel?> getEmployeeByFingerprint(
+      String scannedTemplate, {double threshold = 40.0}
+      ) async {
+    final db = await database;
+
+    final List<Map<String, dynamic>> maps = await db.query('employee');
+    if (maps.isEmpty) return null;
+
+    for (var map in maps) {
+      EmployeeModel employee = EmployeeModel.fromMap(map);
+
+      // Collect all non-null finger_info templates for this employee
+      final storedTemplates = <String>[];
+      for (int i = 1; i <= 10; i++) {
+        String? storedTemplate = map['finger_info$i'] as String?;
+        if (storedTemplate != null && storedTemplate.isNotEmpty) {
+          storedTemplates.add(storedTemplate);
+        }
+      }
+
+      if (storedTemplates.isNotEmpty) {
+        try {
+          final verificationResult = await FingerprintService.verifyFingerprint(
+            scannedTemplate: scannedTemplate,
+            storedTemplates: storedTemplates,
+          );
+
+          if (verificationResult['matched'] == true &&
+              (verificationResult['score'] ?? 0) >= threshold) {
+            dev.log(
+              '✅ Matched fingerprint for ${employee.name} with score: ${verificationResult['score']}',
+              name: 'DatabaseHelper',
+            );
+            return employee; // Return matched employee
+          }
+        } catch (e) {
+          dev.log('❌ Verification error for ${employee.name} (finger_info): $e',
+              name: 'DatabaseHelper');
+          continue; // Move to next employee
+        }
+      }
+    }
+
+    dev.log('⚠️ No fingerprint match found', name: 'DatabaseHelper');
+    return null; // No match found
+  }
+
+
+
 }

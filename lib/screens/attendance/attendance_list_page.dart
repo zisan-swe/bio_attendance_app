@@ -5,6 +5,7 @@ import '../../models/attendance_model.dart';
 import '../../models/employee_model.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/employee_provider.dart';
+import 'attendance_details_page.dart';
 
 class AttendanceListPage extends StatefulWidget {
   const AttendanceListPage({super.key});
@@ -72,23 +73,23 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
       padding: const EdgeInsets.only(top: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Registered Fingerprints:',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-          Wrap(
-            spacing: 4,
-            runSpacing: 4,
-            children: fingerprints
-                .map((finger) => Chip(
-              label: Text(finger),
-              backgroundColor: Colors.blue[50],
-              labelStyle: const TextStyle(fontSize: 12),
-            ))
-                .toList(),
-          ),
-        ],
+        // children: [
+        //   const Text(
+        //     'Registered Fingerprints:',
+        //     style: TextStyle(fontSize: 12, color: Colors.grey),
+        //   ),
+        //   Wrap(
+        //     spacing: 4,
+        //     runSpacing: 4,
+        //     children: fingerprints
+        //         .map((finger) => Chip(
+        //       label: Text(finger),
+        //       backgroundColor: Colors.blue[50],
+        //       labelStyle: const TextStyle(fontSize: 12),
+        //     ))
+        //         .toList(),
+        //   ),
+        // ],
       ),
     );
   }
@@ -139,11 +140,30 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
                 return FutureBuilder<EmployeeModel?>(
                   future: employeeFuture,
                   builder: (context, employeeSnapshot) {
+                    if (employeeSnapshot.connectionState == ConnectionState.waiting) {
+                      return const Card(
+                        margin: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        child: ListTile(
+                          title: Text("Loading employee..."),
+                          subtitle: Text("Please wait"),
+                        ),
+                      );
+                    }
+
+                    if (employeeSnapshot.hasError) {
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        child: ListTile(
+                          title: const Text("Error loading employee"),
+                          subtitle: Text(employeeSnapshot.error.toString()),
+                        ),
+                      );
+                    }
+
                     final employee = employeeSnapshot.data;
 
                     return Card(
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
+                      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: _getStatusColor(attendance.status),
@@ -163,15 +183,9 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
                               '${attendance.attendanceStatus} - ${_dateFormat.format(DateTime.parse(attendance.workingDate))}',
                             ),
                             if (attendance.inTime.isNotEmpty)
-                              Text('In: ${_timeFormat.format(DateTime.parse('2023-01-01 ${attendance.inTime}'))}'),
+                              Text('In Time: ${_timeFormat.format(DateTime.parse('2023-01-01 ${attendance.inTime}'))}'),
                             if (attendance.outTime.isNotEmpty)
-                              Text('Out: ${_timeFormat.format(DateTime.parse('2023-01-01 ${attendance.outTime}'))}'),
-                            if (attendance.location?.isNotEmpty ?? false)
-                              Text('Location: ${attendance.location}'),
-                            // 👉 Add this:
-                            // if (attendance.fingerprint.isNotEmpty)
-                            //   Text('Used Fingerprint: ${attendance.fingerprint}'),
-
+                              Text('Out Time: ${_timeFormat.format(DateTime.parse('2023-01-01 ${attendance.outTime}'))}'),
                             if (attendance.fingerprint.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
@@ -179,35 +193,49 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
                                   children: [
                                     const Icon(Icons.fingerprint, size: 16, color: Colors.deepPurple),
                                     const SizedBox(width: 4),
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.deepPurple[50],
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      child: Text(
-                                        'Used Fingerprint: ${attendance.fingerprint}',
-                                        style: const TextStyle(fontSize: 12, color: Colors.deepPurple),
-                                      ),
-                                    ),
+                                    Text('Used Fingerprint: ${attendance.fingerprint}'),
                                   ],
                                 ),
                               ),
-
-
-
-
-                            if (employee != null) _buildFingerprintStatus(employee),
                           ],
                         ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
-                          // Navigate to detail view if needed
+                          // Step 1: Filter attendances for the same employee and date
+                          final sameDateAttendances = attendanceList.where((a) =>
+                          a.employeeNo == attendance.employeeNo &&
+                              a.workingDate == attendance.workingDate
+                          ).toList();
+
+                          // Step 2: Sort by inTime or outTime (if inTime is empty)
+                          sameDateAttendances.sort((a, b) {
+                            String timeA = a.inTime.isNotEmpty ? a.inTime : a.outTime;
+                            String timeB = b.inTime.isNotEmpty ? b.inTime : b.outTime;
+
+                            DateTime dtA = DateTime.parse('2023-01-01 $timeA');
+                            DateTime dtB = DateTime.parse('2023-01-01 $timeB');
+
+                            return dtA.compareTo(dtB); // ascending
+                          });
+
+                          // Step 3: Navigate to the details page
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AttendanceDetailsPage(
+                                attendances: sameDateAttendances,
+                                employee: employee,
+                              ),
+                            ),
+                          );
                         },
+
+
                       ),
                     );
                   },
                 );
+
               },
             );
           },

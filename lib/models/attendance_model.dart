@@ -1,20 +1,19 @@
 class AttendanceModel {
-  final int? id;
+  final int? id; // Nullable for auto-incremented ID from database
   final String deviceId;
   final int projectId;
   final int blockId;
   final String employeeNo;
   final String workingDate;
   final String attendanceStatus;
-  final String fingerprint;
-  // final String? checkInLocation;
-  final String inTime;
-  final String outTime;
-  final String? location;
-  final int status;
-  final String remarks;
-  final String createAt;
-  final String updateAt;
+  final String fingerprint; // Name of the finger used (e.g., "Left Thumb")
+  final String inTime; // Time of check-in or break-in
+  final String outTime; // Time of check-out or break-out
+  final String? location; // Nullable location (e.g., from LocationService)
+  final int status; // Status code (e.g., 1 for active)
+  final String remarks; // Optional remarks
+  final String createAt; // Creation timestamp
+  final String updateAt; // Last update timestamp
 
   AttendanceModel({
     this.id,
@@ -25,10 +24,9 @@ class AttendanceModel {
     required this.workingDate,
     required this.attendanceStatus,
     required this.fingerprint,
-    // required this.checkInLocation,
     required this.inTime,
     required this.outTime,
-    required this.location,
+    this.location,
     required this.status,
     required this.remarks,
     required this.createAt,
@@ -45,7 +43,6 @@ class AttendanceModel {
       'working_date': workingDate,
       'attendance_status': attendanceStatus,
       'fingerprint': fingerprint,
-      // 'check_in_location': checkInLocation,
       'in_time': inTime,
       'out_time': outTime,
       'location': location,
@@ -58,22 +55,21 @@ class AttendanceModel {
 
   factory AttendanceModel.fromMap(Map<String, dynamic> map) {
     return AttendanceModel(
-      id: map['id'],
-      deviceId: map['device_id'],
-      projectId: map['project_id'],
-      blockId: map['block_id'],
-      employeeNo: map['employee_no'],
-      workingDate: map['working_date'],
-      attendanceStatus: map['attendance_status'],
-      fingerprint: map['fingerprint'],
-      // checkInLocation: map['check_in_location'],
-      inTime: map['in_time'],
-      outTime: map['out_time'],
-      location: map['location'],
-      status: map['status'],
-      remarks: map['remarks'],
-      createAt: map['create_at'],
-      updateAt: map['update_at'],
+      id: map['id'] as int?,
+      deviceId: map['device_id'] as String? ?? 'UnknownDevice',
+      projectId: map['project_id'] as int? ?? 0,
+      blockId: map['block_id'] as int? ?? 0,
+      employeeNo: map['employee_no'] as String? ?? 'Unknown',
+      workingDate: map['working_date'] as String? ?? DateTime.now().toIso8601String().split('T')[0],
+      attendanceStatus: map['attendance_status'] as String? ?? 'Unknown',
+      fingerprint: map['fingerprint'] as String? ?? 'UnknownFinger',
+      inTime: map['in_time'] as String? ?? '',
+      outTime: map['out_time'] as String? ?? '',
+      location: map['location'] as String?,
+      status: map['status'] as int? ?? 0,
+      remarks: map['remarks'] as String? ?? '',
+      createAt: map['create_at'] as String? ?? DateTime.now().toIso8601String(),
+      updateAt: map['update_at'] as String? ?? DateTime.now().toIso8601String(),
     );
   }
 }

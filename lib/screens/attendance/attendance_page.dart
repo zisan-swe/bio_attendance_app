@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
 import '../../models/attendance_model.dart';
+import '../../models/employee_model.dart';
 import '../../providers/attendance_provider.dart';
 import '../../services/location_service.dart';
+import '../../services/fingerprint_service.dart';
 import '../attendance/attendance_list_page.dart';
 
 class AttendancePage extends StatefulWidget {
@@ -18,6 +22,7 @@ class _AttendancePageState extends State<AttendancePage> {
   String formattedTime = '';
   String formattedDate = '';
   Timer? _timer;
+  bool isScanning = false;
 
   Map<String, bool> fingerScanStatus = {
     'Left Thumb': false,
@@ -39,42 +44,96 @@ class _AttendancePageState extends State<AttendancePage> {
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _updateTime());
   }
 
+  static final _timeFormat = DateFormat('hh:mm:ss a');
+  static final _dateFormat = DateFormat('EEEE, MMMM d');
+  static final _timeLogFormat = DateFormat('HH:mm:ss');
+  static final _dateLogFormat = DateFormat('yyyy-MM-dd');
+
   void _updateTime() {
     final now = DateTime.now().toUtc().add(const Duration(hours: 6));
     setState(() {
-      formattedTime = DateFormat('hh:mm:ss a').format(now);
-      formattedDate = DateFormat('EEEE, MMMM d').format(now);
+      formattedTime = _timeFormat.format(now);
+      formattedDate = _dateFormat.format(now);
     });
   }
 
-  Future<void> _storeAttendance() async {
-    final hasAtLeastOneScan = fingerScanStatus.values.any((v) => v == true);
+  Future<void> _startFingerprintScan() async {
+    if (isScanning) return;
+    setState(() => isScanning = true);
 
-    if (!hasAtLeastOneScan) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please scan at least one finger before submitting attendance.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+    final fingerprintService = FingerprintService(); // ✅ Instance বানালাম
+    String? scannedTemplate;
+
+    try {
+      scannedTemplate = await fingerprintService.scanFingerprint(); // ✅ Static না, instance call
+      debugPrint("Scanned Template: $scannedTemplate"); // Log the scanned template
+      if (scannedTemplate == null || scannedTemplate.isEmpty) {
+        _showSnack("❌ Invalid or empty fingerprint scan.", isError: true);
+        setState(() => isScanning = false);
+        return;
+      }
+    } on FingerprintException catch (e) {
+      debugPrint("Scan Error: ${e.code} - ${e.message}");
+      _showSnack("❌ Finger scan failed: ${e.message}", isError: true);
+      setState(() => isScanning = false);
+      return;
+    } catch (e) {
+      debugPrint("Scan Error: $e");
+      _showSnack("❌ Finger scan failed: $e", isError: true);
+      setState(() => isScanning = false);
       return;
     }
 
-    final selectedFinger = fingerScanStatus.entries.firstWhere((e) => e.value == true).key;
+    final attendanceProvider = context.read<AttendanceProvider>();
+    EmployeeModel? employee;
+    try {
+      employee = await attendanceProvider.getEmployeeByFingerprint(scannedTemplate);
+      debugPrint("Employee Found: ${employee?.name ?? 'None'}"); // Log the matched employee
+      if (employee == null) {
+        _showSnack("❌ No matching employee found.", isError: true);
+        setState(() => isScanning = false);
+        return;
+      }
+    } catch (e) {
+      debugPrint("Match Error: $e");
+      _showSnack("❌ Error matching employee: $e", isError: true);
+      setState(() => isScanning = false);
+      return;
+    }
 
+    // Use the selected finger's template (fallback to first if none selected)
+    final selectedFinger = fingerScanStatus.entries.firstWhere(
+          (e) => e.value,
+      orElse: () => MapEntry('Left Thumb', true),
+    ).key;
+    final storedTemplate = employee.fingerprints[selectedFinger] ?? employee.fingerInfo1;
+    debugPrint("Stored Template ($selectedFinger): $storedTemplate"); // Log stored template
+    if (storedTemplate == null || storedTemplate.isEmpty) {
+      _showSnack("❌ No stored template for $selectedFinger.", isError: true);
+      setState(() => isScanning = false);
+      return;
+    }
+
+    // Auto-save and redirect on successful match
+    await _saveAndRedirect(employee, selectedFinger);
+  }
+
+
+  Future<void> _saveAndRedirect(EmployeeModel employee, String selectedFinger) async {
     final now = DateTime.now().toUtc().add(const Duration(hours: 6));
-    final time = DateFormat('HH:mm:ss').format(now);
-    final date = DateFormat('yyyy-MM-dd').format(now);
+    final time = _timeLogFormat.format(now);
+    final date = _dateLogFormat.format(now);
 
     final locationService = LocationService();
-    String? location = await locationService.getCurrentLocation();
+    final location = await locationService.getCurrentLocation();
     final safeLocation = (location != null && location.isNotEmpty) ? location : 'Unknown';
 
     final attendance = AttendanceModel(
+      id: 0,
       deviceId: 'Device001',
       projectId: 1,
       blockId: 1,
-      employeeNo: '101',
+      employeeNo: employee.employeeNo,
       workingDate: date,
       attendanceStatus: selectedAction,
       inTime: (selectedAction == 'Check In' || selectedAction == 'Break In') ? time : '',
@@ -87,17 +146,30 @@ class _AttendancePageState extends State<AttendancePage> {
       updateAt: now.toIso8601String(),
     );
 
-    await AttendanceProvider().insertAttendance(attendance);
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('✅ $selectedAction Successful')),
+    try {
+      await AttendanceProvider().insertAttendance(attendance);
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const AttendanceListPage()),
       );
+      _showSnack("✅ Attendance logged successfully!", isError: false);
+    } catch (e) {
+      debugPrint("Save Error: $e");
+      _showSnack("❌ Failed to log attendance: $e", isError: true);
+    } finally {
+      setState(() => isScanning = false);
     }
+  }
 
-    setState(() {
-      fingerScanStatus.updateAll((key, value) => false);
-    });
+  void _showSnack(String msg, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
@@ -113,9 +185,11 @@ class _AttendancePageState extends State<AttendancePage> {
         title: const Text('Attendance'),
         backgroundColor: Colors.blueGrey,
       ),
-      body: Center(
-        child: SingleChildScrollView(
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 40),
               const Icon(Icons.fingerprint, size: 80, color: Colors.blueGrey),
@@ -165,6 +239,7 @@ class _AttendancePageState extends State<AttendancePage> {
               Wrap(
                 spacing: 12,
                 runSpacing: 12,
+                alignment: WrapAlignment.center,
                 children: [
                   _buildRadioButton('Check In'),
                   _buildRadioButton('Check Out'),
@@ -173,8 +248,6 @@ class _AttendancePageState extends State<AttendancePage> {
                 ],
               ),
               const SizedBox(height: 30),
-
-              // Updated Finger Layout (Left-Right Pairs)
               Column(
                 children: [
                   _buildFingerRow('Left Thumb', 'Right Thumb'),
@@ -185,36 +258,22 @@ class _AttendancePageState extends State<AttendancePage> {
                 ],
               ),
               const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: _storeAttendance,
-                icon: const Icon(Icons.check_circle),
-                label: const Text('Submit Attendance'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                ),
-              ),
-              const SizedBox(height: 30),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AttendanceListPage(),
-                    ),
-                  );
-                },
-                child: const Text('View Attendance Records'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  backgroundColor: Colors.blueGrey,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
+              if (!isScanning)
+                ElevatedButton.icon(
+                  onPressed: _startFingerprintScan,
+                  icon: const Icon(Icons.fingerprint),
+                  label: const Text('Scan Fingerprint'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueGrey,
+                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                   ),
                 ),
-              ),
+              if (isScanning)
+                const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: CircularProgressIndicator(),
+                ),
               const SizedBox(height: 30),
             ],
           ),
@@ -225,31 +284,28 @@ class _AttendancePageState extends State<AttendancePage> {
 
   Widget _buildRadioButton(String action) {
     final isSelected = selectedAction == action;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          selectedAction = action;
-        });
-      },
-      child: Container(
-        width: 130,
-        height: 50,
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.green : Colors.grey[400],
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(
-            color: isSelected ? Colors.green : Colors.transparent,
-            width: 2,
+    return SizedBox(
+      width: 130,
+      height: 50,
+      child: GestureDetector(
+        onTap: () => setState(() => selectedAction = action),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.green : Colors.grey[400],
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: isSelected ? Colors.green : Colors.transparent,
+              width: 2,
+            ),
           ),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          action,
-          style: const TextStyle(
-            fontSize: 16,
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+          alignment: Alignment.center,
+          child: Text(
+            action,
+            style: const TextStyle(
+              fontSize: 16,
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ),
@@ -259,7 +315,7 @@ class _AttendancePageState extends State<AttendancePage> {
   Widget _buildFinger(String fingerName) {
     final isScanned = fingerScanStatus[fingerName] ?? false;
     final screenWidth = MediaQuery.of(context).size.width;
-    final buttonWidth = (screenWidth - 64) / 2;
+    final buttonWidth = (screenWidth - 64 - 16) / 2;
 
     return SizedBox(
       width: buttonWidth,
@@ -267,7 +323,6 @@ class _AttendancePageState extends State<AttendancePage> {
       child: ElevatedButton(
         onPressed: () {
           setState(() {
-            // ❗ Reset all to false, then mark only selected one as true
             fingerScanStatus.updateAll((key, value) => false);
             fingerScanStatus[fingerName] = true;
           });
@@ -281,83 +336,21 @@ class _AttendancePageState extends State<AttendancePage> {
           elevation: 2,
           padding: const EdgeInsets.symmetric(horizontal: 10),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Icon(
-            //   isScanned ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-            //   size: 20,
-            // ),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                fingerName,
-                style: const TextStyle(fontSize: 13),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+        child: Text(
+          fingerName,
+          style: const TextStyle(fontSize: 13),
+          overflow: TextOverflow.ellipsis,
         ),
       ),
     );
   }
-
-
-
-
-
-
-  // Widget _buildFinger(String fingerName) {
-  //   final isScanned = fingerScanStatus[fingerName] ?? false;
-  //   final screenWidth = MediaQuery.of(context).size.width;
-  //   final buttonWidth = (screenWidth - 64) / 2; // 32px padding on each side + spacing
-  //
-  //   return SizedBox(
-  //     width: buttonWidth,
-  //     height: 50,
-  //     child: ElevatedButton(
-  //       onPressed: () {
-  //         setState(() {
-  //           fingerScanStatus[fingerName] = !isScanned;
-  //         });
-  //       },
-  //       style: ElevatedButton.styleFrom(
-  //         backgroundColor: isScanned ? Colors.green : Colors.grey[300],
-  //         foregroundColor: isScanned ? Colors.white : Colors.black,
-  //         shape: RoundedRectangleBorder(
-  //           borderRadius: BorderRadius.circular(20),
-  //         ),
-  //         elevation: 2,
-  //         padding: const EdgeInsets.symmetric(horizontal: 10),
-  //       ),
-  //       child: Row(
-  //         mainAxisAlignment: MainAxisAlignment.center,
-  //         children: [
-  //           Icon(
-  //             isScanned ? Icons.fingerprint : Icons.fingerprint_outlined,
-  //             size: 20,
-  //           ),
-  //           const SizedBox(width: 6),
-  //           Flexible(
-  //             child: Text(
-  //               fingerName,
-  //               style: const TextStyle(fontSize: 13),
-  //               overflow: TextOverflow.ellipsis,
-  //             ),
-  //           ),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
-
-
 
   Widget _buildFingerRow(String leftFinger, String rightFinger) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           _buildFinger(leftFinger),
           const SizedBox(width: 16),

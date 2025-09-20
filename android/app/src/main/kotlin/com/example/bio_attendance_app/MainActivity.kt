@@ -66,12 +66,12 @@ class MainActivity : FlutterActivity() {
                             val has = slk?.let { um.hasPermission(it) } ?: false
                             val sdkPresent = hasVendorSdk()
                             val note = if (isEmulator()) "Running on emulator; OTG not supported." else null
-                           postSuccessMap(result, mapOf(
-                            "devices" to sb.toString().trim(),
-                            "hasPermission" to has,
-                            "sdkPresent" to sdkPresent,
-                            "note" to note
-                        ))
+                            postSuccessMap(result, mapOf(
+                                "devices" to sb.toString().trim(),
+                                "hasPermission" to has,
+                                "sdkPresent" to sdkPresent,
+                                "note" to note
+                            ))
                         }
                     }
 
@@ -182,6 +182,69 @@ class MainActivity : FlutterActivity() {
                             result.error("LED_OFF_ERROR", e.message, null)
                         }
                     }
+
+
+                    // ✅ তোমার নতুন verifyFingerprint এখানে বসবে
+                    "verifyFingerprint" -> {
+                        scope.launch {
+                            try {
+                                val base64NewTpl = call.argument<String>("template") ?: ""
+                                val base64StoredTpls = call.argument<List<String>>("stored") ?: emptyList()
+
+                                if (base64NewTpl.isEmpty() || base64StoredTpls.isEmpty()) {
+                                    result.error("VERIFY_INVALID", "Empty template provided", null)
+                                    return@launch
+                                }
+
+                                val newTpl = Base64.decode(base64NewTpl, Base64.NO_WRAP)
+                                var bestScore = 0
+                                var matched = false
+                                var matchedEmployeeId: Int? = null
+
+                                Log.d(TAG, "🔍 New Template length: ${newTpl.size}")
+
+                                for ((index, storedTplBase64) in base64StoredTpls.withIndex()) {
+                                    val storedTpl = Base64.decode(storedTplBase64, Base64.NO_WRAP)
+
+                                    Log.d(TAG, "👉 Comparing with stored[$index], length=${storedTpl.size}")
+
+                                    // ✅ Use ZKFingerService verify
+                                    val score = ZKFingerService.verify(newTpl, storedTpl)
+
+                                    Log.d(TAG, "📊 Score with stored[$index] = $score")
+
+                                    if (score >= 40) { // ✅ Lower threshold for debugging
+                                        matched = true
+                                        bestScore = score
+                                        matchedEmployeeId = index
+                                        break
+                                    }
+
+                                    if (score > bestScore) {
+                                        bestScore = score // keep best score even if not matched
+                                    }
+                                }
+
+                                if (matched) {
+                                    Log.i(TAG, "✅ Match found! Employee=$matchedEmployeeId, Score=$bestScore")
+                                } else {
+                                    Log.w(TAG, "❌ No Match. Best Score=$bestScore")
+                                }
+
+                                result.success(
+                                    mapOf(
+                                        "matched" to matched,
+                                        "score" to bestScore,
+                                        "matchedEmployeeId" to matchedEmployeeId
+                                    )
+                                )
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Verification failed", e)
+                                result.error("VERIFY_FAIL", "Verification failed: ${e.message}", e.stackTraceToString())
+                            }
+                        }
+                    }
+
 
                     else -> result.notImplemented()
                 }
@@ -488,4 +551,22 @@ class MainActivity : FlutterActivity() {
         releaseAll()
         scope.cancel()
     }
+
+//    private fun matchFingerprint(newTemplate: ByteArray, storedTemplate: ByteArray): Boolean {
+//        try {
+//            // Use ZKFingerService.verify() to compare templates
+//            val score = ZKFingerService.verify(newTemplate, storedTemplate)
+//            val isMatch = score >= 50 // Threshold: Adjust based on SDK docs (typically 70–80)
+//            Log.i(TAG, "Verification Score: $score, Match: $isMatch")
+//            return isMatch
+//        } catch (e: Exception) {
+//            Log.e(TAG, "Verification failed: ${e.message}")
+//            return false
+//        }
+//    }
+
+
+
+
+
 }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-
-import '../../providers/employee_provider1.dart';
-import '../../services/fingerprint_service1.dart';
+import 'package:flutter/services.dart';
+import 'package:biometric_attendance/services/fingerprint_service.dart';
 
 class FingerprintTestPage extends StatefulWidget {
   const FingerprintTestPage({super.key});
@@ -11,73 +10,153 @@ class FingerprintTestPage extends StatefulWidget {
 }
 
 class _FingerprintTestPageState extends State<FingerprintTestPage> {
-  final _svc = FingerprintService1();
-  final _employeeProvider = EmployeeProvider1();
-  String log = "Ready";
+  final _svc = FingerprintService();
 
+  String _log = 'Ready';
+  String? _template;
 
-  Future<void> _scanAndVerify() async {
+  void _append(String line) {
+    final ts = DateTime.now().toIso8601String();
+    setState(() => _log = '$_log\n[$ts] $line');
+  }
+
+  Future<void> _diagnose() async {
+    setState(() {
+      _log = 'Diagnosing...';
+      _template = null;
+    });
     try {
-      setState(() => log = "🔍 Scanning...");
-
-      // ১) নতুন টেমপ্লেট স্ক্যান
-      final newTpl = await _svc.scanFingerprint();
-      if (newTpl == null) {
-        setState(() => log = "❌ No fingerprint captured!");
-        return;
-      }
-
-      // ২) Stored templates SQLite থেকে আনা (with employeeId)
-      final storedTemplates = await _employeeProvider.getAllTemplatesWithEmployeeId();
-      if (storedTemplates.isEmpty) {
-        setState(() => log = "⚠️ No stored templates in database.");
-        return;
-      }
-
-      int bestScore = 0;
-      int? matchedEmployeeId;
-
-      // ৩) Verify against each template
-      for (var item in storedTemplates) {
-        final result = await FingerprintService1.verifyFingerprint(
-          scannedTemplate: newTpl,
-          storedTemplates: [item.template],
-        );
-
-        if (result['matched'] == true && (result['score'] ?? 0) > bestScore) {
-          bestScore = result['score'] ?? 0;
-          matchedEmployeeId = item.employeeId;
-        }
-      }
-
-      // ৪) Show result
-      setState(() {
-        if (matchedEmployeeId != null) {
-          log = "✅ Match Found!\nEmployee ID: $matchedEmployeeId\nScore: $bestScore";
-        } else {
-          log = "❌ No Match.\nBest Score: $bestScore";
-        }
-      });
+      final m = await _svc.diagnoseUsb();
+      _append('USB Devices: ${m['devices']}');
+      _append('HasPermission: ${m['hasPermission']}');
+      _append('SDK Present: ${m['sdkPresent']}');
+      if (m['note'] != null) _append('Note: ${m['note']}');
+    } on PlatformException catch (e) {
+      setState(() => _log = 'Error: ${e.code} - ${e.message}');
     } catch (e) {
-      setState(() => log = "⚠️ Error: $e");
+      setState(() => _log = 'Error: $e');
     }
   }
 
+  Future<void> _scan() async {
+    print("[UI] _scan() called");
+
+    try {
+      await _svc.ledOn();
+      _append('💡 LED ON - Scanner ready');
+
+      setState(() {
+        _log = '🟢 READY - Place finger on scanner NOW!\n\n'
+            '• Press FIRMLY on the center\n'
+            '• Cover the entire sensor surface\n'
+            '• Keep finger STILL for 2 seconds\n'
+            '• Wait for beep/light feedback\n\n'
+            'Scanning in 2 seconds...';
+        _template = null;
+      });
+
+      await Future.delayed(const Duration(seconds: 2));
+
+      for (int attempt = 1; attempt <= 3; attempt++) {
+        print("[UI] Starting attempt $attempt");
+
+        try {
+          _append('\n=== Attempt $attempt ===');
+          _append('Scanning... (keep finger pressed)');
+
+          // 🔹 এখন service থেকে সরাসরি String আসবে
+          final tpl = await _svc.scanFingerprint();
+          print("[UI] Attempt $attempt: Template length = ${tpl.length}");
+
+          setState(() {
+            _template = tpl;
+            _append('✅ SUCCESS! Template captured (${tpl.length} chars)');
+          });
+
+          await _svc.ledOff();
+          _append('💡 LED OFF - Scan complete');
+          return;
+        } on PlatformException catch (e) {
+          print("[UI] Attempt $attempt: PlatformException: ${e.code} - ${e.message}");
+
+          if (e.code == 'CAPTURE_EMPTY' || e.code == 'EMPTY_TEMPLATE') {
+            _append('❌ No fingerprint detected. Please:');
+            _append('   • Press HARDER and center finger');
+            _append('   • Try a DIFFERENT finger');
+            _append('   • Ensure finger is CLEAN and DRY');
+            await Future.delayed(const Duration(seconds: 2));
+          } else {
+            _append('❌ Error: ${e.code} - ${e.message}');
+            break;
+          }
+        } catch (e, st) {
+          print("[UI] Attempt $attempt: Unexpected error: $e\n$st");
+          _append('❌ Unexpected error: $e');
+          break;
+        }
+      }
+
+      _append('\n💡 TIPS: Clean sensor, use thumb/index, firm pressure');
+      _append('🔧 Check USB connection and try again');
+    } finally {
+      try {
+        await _svc.ledOff();
+        _append('💡 LED OFF - Scan ended');
+      } catch (_) {}
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Fingerprint Test")),
-      body: Center(
+      appBar: AppBar(title: const Text('SLK20R Test')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(log, textAlign: TextAlign.center),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _scanAndVerify,
-              child: const Text("Scan & Verify"),
+            Wrap(spacing: 12, children: [
+              ElevatedButton(onPressed: _diagnose, child: const Text('Diagnose USB')),
+              ElevatedButton(onPressed: _scan, child: const Text('Scan Finger')),
+            ]),
+            const SizedBox(height: 12),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Log:', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.black12,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: SingleChildScrollView(child: Text(_log)),
+              ),
+            ),
+            if (_template != null) ...[
+              const SizedBox(height: 8),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Template (Base64):', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                height: 250,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    _template!,
+                    maxLines: 15,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

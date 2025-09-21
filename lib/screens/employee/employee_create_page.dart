@@ -175,7 +175,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ $fingerName failed: $e")),
+        SnackBar(content: Text("⚠️ $fingerName failed: $e")),
       );
     }
   }

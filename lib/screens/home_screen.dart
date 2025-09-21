@@ -129,17 +129,17 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
 
-              // SizedBox(
-              //   width: 250,
-              //   // height: 70,
-              //   child: _buildButton(
-              //     context: context,
-              //     label: 'Finger Test',
-              //     icon: Icons.fingerprint,
-              //     destination: FingerprintTestPage(),
-              //     color: Colors.orange,
-              //   ),
-              // ),
+              SizedBox(
+                width: 250,
+                // height: 70,
+                child: _buildButton(
+                  context: context,
+                  label: 'Finger Test',
+                  icon: Icons.fingerprint,
+                  destination: FingerprintTestPage(),
+                  color: Colors.orange,
+                ),
+              ),
               SizedBox(
                 width: 250,
                 child: _buildButton(

@@ -37,6 +37,12 @@ class AttendanceDetailsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 🔹 Group attendances by date
+    Map<String, List<AttendanceModel>> grouped = {};
+    for (var att in attendances) {
+      grouped.putIfAbsent(att.workingDate, () => []).add(att);
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Attendance Details"),
@@ -60,7 +66,7 @@ class AttendanceDetailsPage extends StatelessWidget {
                       CircleAvatar(
                         radius: 28,
                         backgroundColor: Colors.blue,
-                        child: Icon(Icons.person, color: Colors.white, size: 32),
+                        child: const Icon(Icons.person, color: Colors.white, size: 32),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -89,69 +95,82 @@ class AttendanceDetailsPage extends StatelessWidget {
 
                 const SizedBox(height: 20),
 
-                // 🔹 Attendance List
-                ...attendances.map((attendance) {
+                // 🔹 Attendance grouped by date
+                ...grouped.entries.map((entry) {
+                  String date = entry.key;
+                  List<AttendanceModel> records = entry.value;
+
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundColor: _getStatusColor(attendance.status),
-                            child: Icon(
-                              _getActionIcon(attendance.attendanceStatus),
-                              color: Colors.white,
-                              size: 20,
+                      ...records.map((attendance) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: _getStatusColor(attendance.status),
+                                  child: Icon(
+                                    _getActionIcon(attendance.attendanceStatus),
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  attendance.attendanceStatus,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            attendance.attendanceStatus,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      _infoRow("Date", _dateFormat.format(DateTime.parse(attendance.workingDate))),
-                      if (attendance.inTime.isNotEmpty)
-                        _infoRow(
-                          "In Time",
-                          _timeFormat.format(DateTime.parse("2023-01-01 ${attendance.inTime}")),
-                        ),
-                      if (attendance.outTime.isNotEmpty)
-                        _infoRow(
-                          "Out Time",
-                          _timeFormat.format(DateTime.parse("2023-01-01 ${attendance.outTime}")),
-                        ),
-                      _infoRow("Status", attendance.attendanceStatus),
-                      if (attendance.fingerprint.isNotEmpty)
-                        _infoRow("Used Finger", attendance.fingerprint),
-                      const Divider(height: 30),
+                            const SizedBox(height: 10),
+
+                            // 🔹 Date
+                            _infoRow("Date", _dateFormat.format(DateTime.parse(date))),
+
+                            // 🔹 In/Out Time
+                            if (attendance.inTime.isNotEmpty)
+                              _infoRow(
+                                "In Time",
+                                _timeFormat.format(DateTime.parse("2023-01-01 ${attendance.inTime}")),
+                              ),
+                            if (attendance.outTime.isNotEmpty)
+                              _infoRow(
+                                "Out Time",
+                                _timeFormat.format(DateTime.parse("2023-01-01 ${attendance.outTime}")),
+                              ),
+
+                            // 🔹 Fingerprint
+                            if (attendance.fingerprint.isNotEmpty)
+                              _infoRow("Used Finger", attendance.fingerprint),
+
+                            const Divider(height: 30),
+                          ],
+                        );
+                      }).toList(),
                     ],
                   );
-                }).toList(),
+                }),
 
                 // 🔹 Employee Details at bottom
-                if (employee != null) ...[
-                  const Text(
-                    "Employee Details",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.deepPurple,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  _infoRow("Name", employee!.name),
-                  _infoRow("Number", employee!.employeeNo.toString()),
-                  // Optional:
-                  // _infoRow("Department", employee!.department ?? "N/A"),
-                  // _infoRow("Designation", employee!.designation ?? "N/A"),
-                ]
+                // if (employee != null) ...[
+                //   const Text(
+                //     "Employee Details",
+                //     style: TextStyle(
+                //       fontSize: 18,
+                //       fontWeight: FontWeight.bold,
+                //       color: Colors.deepPurple,
+                //     ),
+                //   ),
+                //   const SizedBox(height: 10),
+                //   _infoRow("Name", employee!.name),
+                //   _infoRow("Number", employee!.employeeNo.toString()),
+                // ]
               ],
             ),
           ),

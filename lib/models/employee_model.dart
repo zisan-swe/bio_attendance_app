@@ -49,6 +49,7 @@ class EmployeeModel {
     required this.imagePath,
   });
 
+  /// --- From SQLite Row ---
   factory EmployeeModel.fromMap(Map<String, dynamic> map) {
     return EmployeeModel(
       id: map['id'] as int?,
@@ -77,6 +78,35 @@ class EmployeeModel {
     );
   }
 
+  /// --- From API Response ---
+  factory EmployeeModel.fromJson(Map<String, dynamic> json) {
+    return EmployeeModel(
+      id: json['id'] as int?,
+      name: json['name'] ?? '',
+      email: json['email'] ?? '',
+      employeeNo: json['employee_no'] ?? '',
+      nid: json['nid'] ?? '',
+      dailyWages: (json['daily_wages'] as num?)?.toDouble() ?? 0.0,
+      phone: json['phone'] ?? '',
+      fatherName: json['father_name'] ?? '',
+      motherName: json['mother_name'] ?? '',
+      dob: json['dob'] ?? '',
+      joiningDate: json['joining_date'] ?? '',
+      employeeType: json['employee_type'] ?? 1,
+      fingerInfo1: json['finger_info1'] ?? '',
+      fingerInfo2: json['finger_info2'] ?? '',
+      fingerInfo3: json['finger_info3'] ?? '',
+      fingerInfo4: json['finger_info4'] ?? '',
+      fingerInfo5: json['finger_info5'] ?? '',
+      fingerInfo6: json['finger_info6'] ?? '',
+      fingerInfo7: json['finger_info7'] ?? '',
+      fingerInfo8: json['finger_info8'] ?? '',
+      fingerInfo9: json['finger_info9'] ?? '',
+      fingerInfo10: json['finger_info10'] ?? '',
+      imagePath: json['image_path'] ?? '',
+    );
+  }
+
   /// Getter for fingerprints map (finger name to Base64 template)
   Map<String, String> get fingerprints {
     return {
@@ -90,9 +120,10 @@ class EmployeeModel {
       'Right Ring': fingerInfo8,
       'Left Little': fingerInfo9,
       'Right Little': fingerInfo10,
-    }..removeWhere((key, value) => value.isEmpty); // Remove empty templates
+    }..removeWhere((key, value) => value.isEmpty);
   }
 
+  /// --- For SQLite Insert ---
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -121,7 +152,36 @@ class EmployeeModel {
     };
   }
 
-  // ✅ Added copyWith method
+  /// --- For API Request ---
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'employee_no': employeeNo,
+      'nid': nid,
+      'daily_wages': dailyWages,
+      'phone': phone,
+      'father_name': fatherName,
+      'mother_name': motherName,
+      'dob': dob,
+      'joining_date': joiningDate,
+      'employee_type': employeeType,
+      'finger_info1': fingerInfo1,
+      'finger_info2': fingerInfo2,
+      'finger_info3': fingerInfo3,
+      'finger_info4': fingerInfo4,
+      'finger_info5': fingerInfo5,
+      'finger_info6': fingerInfo6,
+      'finger_info7': fingerInfo7,
+      'finger_info8': fingerInfo8,
+      'finger_info9': fingerInfo9,
+      'finger_info10': fingerInfo10,
+      'image_path': imagePath,
+    };
+  }
+
+  /// --- Copy with updated fields ---
   EmployeeModel copyWith({
     int? id,
     String? name,

@@ -1,37 +1,77 @@
 class AttendanceModel {
-  final int? id; // Nullable for auto-incremented ID from database
+  final int id;
   final String deviceId;
   final int projectId;
   final int blockId;
   final String employeeNo;
   final String workingDate;
   final String attendanceStatus;
-  final String fingerprint; // Name of the finger used (e.g., "Left Thumb")
-  final String inTime; // Time of check-in or break-in
-  final String outTime; // Time of check-out or break-out
-  final String? location; // Nullable location (e.g., from LocationService)
-  final int status; // Status code (e.g., 1 for active)
-  final String remarks; // Optional remarks
-  final String createAt; // Creation timestamp
-  final String updateAt; // Last update timestamp
+  final String inTime;
+  final String outTime;
+  final String location;
+  final String fingerprint;
+  final int status;
+  final String remarks;
+  final String createAt;
+  final String updateAt;
+  final int synced; // 0 = not synced, 1 = synced
 
   AttendanceModel({
-    this.id,
+    required this.id,
     required this.deviceId,
     required this.projectId,
     required this.blockId,
     required this.employeeNo,
     required this.workingDate,
     required this.attendanceStatus,
-    required this.fingerprint,
     required this.inTime,
     required this.outTime,
-    this.location,
+    required this.location,
+    required this.fingerprint,
     required this.status,
     required this.remarks,
     required this.createAt,
     required this.updateAt,
+    required this.synced,
   });
+
+  AttendanceModel copyWith({
+    int? id,
+    String? deviceId,
+    int? projectId,
+    int? blockId,
+    String? employeeNo,
+    String? workingDate,
+    String? attendanceStatus,
+    String? inTime,
+    String? outTime,
+    String? location,
+    String? fingerprint,
+    int? status,
+    String? remarks,
+    String? createAt,
+    String? updateAt,
+    int? synced,
+  }) {
+    return AttendanceModel(
+      id: id ?? this.id,
+      deviceId: deviceId ?? this.deviceId,
+      projectId: projectId ?? this.projectId,
+      blockId: blockId ?? this.blockId,
+      employeeNo: employeeNo ?? this.employeeNo,
+      workingDate: workingDate ?? this.workingDate,
+      attendanceStatus: attendanceStatus ?? this.attendanceStatus,
+      inTime: inTime ?? this.inTime,
+      outTime: outTime ?? this.outTime,
+      location: location ?? this.location,
+      fingerprint: fingerprint ?? this.fingerprint,
+      status: status ?? this.status,
+      remarks: remarks ?? this.remarks,
+      createAt: createAt ?? this.createAt,
+      updateAt: updateAt ?? this.updateAt,
+      synced: synced ?? this.synced,
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -42,34 +82,36 @@ class AttendanceModel {
       'employee_no': employeeNo,
       'working_date': workingDate,
       'attendance_status': attendanceStatus,
-      'fingerprint': fingerprint,
       'in_time': inTime,
       'out_time': outTime,
       'location': location,
+      'fingerprint': fingerprint,
       'status': status,
       'remarks': remarks,
       'create_at': createAt,
       'update_at': updateAt,
+      'synced': synced,
     };
   }
 
   factory AttendanceModel.fromMap(Map<String, dynamic> map) {
     return AttendanceModel(
-      id: map['id'] as int?,
-      deviceId: map['device_id'] as String? ?? 'UnknownDevice',
-      projectId: map['project_id'] as int? ?? 0,
-      blockId: map['block_id'] as int? ?? 0,
-      employeeNo: map['employee_no'] as String? ?? 'Unknown',
-      workingDate: map['working_date'] as String? ?? DateTime.now().toIso8601String().split('T')[0],
-      attendanceStatus: map['attendance_status'] as String? ?? 'Unknown',
-      fingerprint: map['fingerprint'] as String? ?? 'UnknownFinger',
-      inTime: map['in_time'] as String? ?? '',
-      outTime: map['out_time'] as String? ?? '',
-      location: map['location'] as String?,
-      status: map['status'] as int? ?? 0,
-      remarks: map['remarks'] as String? ?? '',
-      createAt: map['create_at'] as String? ?? DateTime.now().toIso8601String(),
-      updateAt: map['update_at'] as String? ?? DateTime.now().toIso8601String(),
+      id: map['id'] ?? 0,
+      deviceId: map['device_id'] ?? '',
+      projectId: map['project_id'] ?? 0,
+      blockId: map['block_id'] ?? 0,
+      employeeNo: map['employee_no'] ?? '',
+      workingDate: map['working_date'] ?? '',
+      attendanceStatus: map['attendance_status'] ?? '',
+      inTime: map['in_time'] ?? '',
+      outTime: map['out_time'] ?? '',
+      location: map['location'] ?? '',
+      fingerprint: map['fingerprint'] ?? '',
+      status: map['status'] ?? 1,
+      remarks: map['remarks'] ?? '',
+      createAt: map['create_at'] ?? '',
+      updateAt: map['update_at'] ?? '',
+      synced: map['synced'] ?? 0,
     );
   }
 }

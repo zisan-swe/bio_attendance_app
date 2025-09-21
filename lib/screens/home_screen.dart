@@ -108,16 +108,6 @@ class HomeScreen extends StatelessWidget {
 
               //Same Weight Box
               SizedBox(
-                width: 250, // Set same width for all buttons
-                child: _buildButton(
-                  context: context,
-                  label: 'Worker',
-                  icon: Icons.person,
-                  destination: WorkerPage(),
-                  color: Colors.indigo,
-                ),
-              ),
-              SizedBox(
                 width: 250,
                 child: _buildButton(
                   context: context,
@@ -127,17 +117,29 @@ class HomeScreen extends StatelessWidget {
                   color: Colors.green,
                 ),
               ),
+
               SizedBox(
-                width: 250,
-                // height: 70,
+                width: 250, // Set same width for all buttons
                 child: _buildButton(
                   context: context,
-                  label: 'Finger Test',
-                  icon: Icons.fingerprint,
-                  destination: FingerprintTestPage(),
-                  color: Colors.orange,
+                  label: 'Worker',
+                  icon: Icons.person,
+                  destination: WorkerPage(),
+                  color: Colors.indigo,
                 ),
               ),
+
+              // SizedBox(
+              //   width: 250,
+              //   // height: 70,
+              //   child: _buildButton(
+              //     context: context,
+              //     label: 'Finger Test',
+              //     icon: Icons.fingerprint,
+              //     destination: FingerprintTestPage(),
+              //     color: Colors.orange,
+              //   ),
+              // ),
               SizedBox(
                 width: 250,
                 child: _buildButton(

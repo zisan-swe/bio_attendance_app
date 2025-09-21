@@ -1,25 +1,57 @@
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:intl/intl.dart'; // Import for DateFormat
+import 'package:intl/intl.dart';
+
 import '../db/database_helper.dart';
 import '../models/attendance_model.dart';
-import '../../services/fingerprint_service.dart'; // Import for FingerprintService
-import '../models/employee_model.dart'; // Ensure EmployeeModel is imported
+import '../models/employee_model.dart';
+import '../services/api_service.dart';
+import '../../services/fingerprint_service.dart';
 
 class AttendanceProvider with ChangeNotifier {
   final DatabaseHelper dbHelper = DatabaseHelper.instance;
+
+  static const String _attendanceTable = 'attendance';
+  static const String _employeeTable = 'employee';
+
+  // Static DateFormat instances for consistency
+  static final _timeLogFormat = DateFormat('HH:mm:ss');
+  static final _dateLogFormat = DateFormat('yyyy-MM-dd');
 
   /// Insert a new attendance record
   Future<int> insertAttendance(AttendanceModel attendance) async {
     try {
       final db = await dbHelper.database;
-      final id = await db.insert('attendance', attendance.toMap(),
-          conflictAlgorithm: ConflictAlgorithm.replace);
+      final id = await db.insert(
+        _attendanceTable,
+        attendance.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
       notifyListeners();
       return id;
-    } catch (e) {
-      debugPrint('Error inserting attendance: $e');
-      return -1; // Return -1 to indicate failure
+    } catch (e, stack) {
+      debugPrint('❌ Error inserting attendance: $e\n$stack');
+      return -1;
+    }
+  }
+
+  /// Insert batch attendance records
+  Future<void> insertBatchAttendance(List<AttendanceModel> records) async {
+    if (records.isEmpty) return;
+    try {
+      final db = await dbHelper.database;
+      final batch = db.batch();
+      for (final record in records) {
+        batch.insert(
+          _attendanceTable,
+          record.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      await batch.commit(noResult: true);
+      notifyListeners();
+    } catch (e, stack) {
+      debugPrint('❌ Error inserting batch attendance: $e\n$stack');
     }
   }
 
@@ -27,10 +59,10 @@ class AttendanceProvider with ChangeNotifier {
   Future<List<AttendanceModel>> getAllAttendance() async {
     try {
       final db = await dbHelper.database;
-      final result = await db.query('attendance', orderBy: 'create_at DESC');
-      return result.map((map) => AttendanceModel.fromMap(map)).toList();
-    } catch (e) {
-      debugPrint('Error fetching attendance: $e');
+      final result = await db.query(_attendanceTable, orderBy: 'create_at DESC');
+      return result.map(AttendanceModel.fromMap).toList();
+    } catch (e, stack) {
+      debugPrint('❌ Error fetching attendance: $e\n$stack');
       return [];
     }
   }
@@ -40,14 +72,14 @@ class AttendanceProvider with ChangeNotifier {
     try {
       final db = await dbHelper.database;
       final result = await db.query(
-        'attendance',
+        _attendanceTable,
         where: 'working_date = ?',
         whereArgs: [date],
         orderBy: 'create_at DESC',
       );
-      return result.map((map) => AttendanceModel.fromMap(map)).toList();
-    } catch (e) {
-      debugPrint('Error fetching attendance by date: $e');
+      return result.map(AttendanceModel.fromMap).toList();
+    } catch (e, stack) {
+      debugPrint('❌ Error fetching attendance by date: $e\n$stack');
       return [];
     }
   }
@@ -57,14 +89,31 @@ class AttendanceProvider with ChangeNotifier {
     try {
       final db = await dbHelper.database;
       final result = await db.query(
-        'attendance',
+        _attendanceTable,
         where: 'employee_no = ?',
         whereArgs: [employeeNo],
         orderBy: 'create_at DESC',
       );
-      return result.map((map) => AttendanceModel.fromMap(map)).toList();
-    } catch (e) {
-      debugPrint('Error fetching attendance by employee: $e');
+      return result.map(AttendanceModel.fromMap).toList();
+    } catch (e, stack) {
+      debugPrint('❌ Error fetching attendance by employee: $e\n$stack');
+      return [];
+    }
+  }
+
+  /// Fetch attendance records by project and block
+  Future<List<AttendanceModel>> getAttendanceByProjectBlock(int projectId, int blockId) async {
+    try {
+      final db = await dbHelper.database;
+      final result = await db.query(
+        _attendanceTable,
+        where: 'project_id = ? AND block_id = ?',
+        whereArgs: [projectId, blockId],
+        orderBy: 'create_at DESC',
+      );
+      return result.map(AttendanceModel.fromMap).toList();
+    } catch (e, stack) {
+      debugPrint('❌ Error fetching attendance by project/block: $e\n$stack');
       return [];
     }
   }
@@ -73,16 +122,18 @@ class AttendanceProvider with ChangeNotifier {
   Future<int> updateAttendance(AttendanceModel attendance) async {
     try {
       final db = await dbHelper.database;
-      return await db.update(
-        'attendance',
+      final updatedRows = await db.update(
+        _attendanceTable,
         attendance.toMap(),
         where: 'id = ?',
         whereArgs: [attendance.id],
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
-    } catch (e) {
-      debugPrint('Error updating attendance: $e');
-      return 0; // Return 0 to indicate failure
+      if (updatedRows > 0) notifyListeners();
+      return updatedRows;
+    } catch (e, stack) {
+      debugPrint('❌ Error updating attendance: $e\n$stack');
+      return 0;
     }
   }
 
@@ -90,25 +141,29 @@ class AttendanceProvider with ChangeNotifier {
   Future<int> deleteAttendance(int id) async {
     try {
       final db = await dbHelper.database;
-      return await db.delete(
-        'attendance',
+      final deletedRows = await db.delete(
+        _attendanceTable,
         where: 'id = ?',
         whereArgs: [id],
       );
-    } catch (e) {
-      debugPrint('Error deleting attendance: $e');
-      return 0; // Return 0 to indicate failure
+      if (deletedRows > 0) notifyListeners();
+      return deletedRows;
+    } catch (e, stack) {
+      debugPrint('❌ Error deleting attendance: $e\n$stack');
+      return 0;
     }
   }
 
-  /// Clear all attendance records (⚠️ Use with caution)
+  /// Clear all attendance records
   Future<int> clearAllAttendance() async {
     try {
       final db = await dbHelper.database;
-      return await db.delete('attendance');
-    } catch (e) {
-      debugPrint('Error clearing attendance: $e');
-      return 0; // Return 0 to indicate failure
+      final deletedRows = await db.delete(_attendanceTable);
+      if (deletedRows > 0) notifyListeners();
+      return deletedRows;
+    } catch (e, stack) {
+      debugPrint('❌ Error clearing attendance: $e\n$stack');
+      return 0;
     }
   }
 
@@ -117,103 +172,54 @@ class AttendanceProvider with ChangeNotifier {
     try {
       final db = await dbHelper.database;
       final result = await db.query(
-        'employee',
+        _employeeTable,
         columns: [
-          'finger_info1',
-          'finger_info2',
-          'finger_info3',
-          'finger_info4',
-          'finger_info5',
-          'finger_info6',
-          'finger_info7',
-          'finger_info8',
-          'finger_info9',
-          'finger_info10',
+          'finger_info1', 'finger_info2', 'finger_info3', 'finger_info4', 'finger_info5',
+          'finger_info6', 'finger_info7', 'finger_info8', 'finger_info9', 'finger_info10',
         ],
         where: 'employee_no = ?',
         whereArgs: [employeeNo],
         limit: 1,
       );
 
-      if (result.isNotEmpty) {
-        final map = result.first;
-        final fingerprints = <String, String>{};
-        const fingerMap = {
-          'finger_info1': 'Left Thumb',
-          'finger_info2': 'Right Thumb',
-          'finger_info3': 'Left Index',
-          'finger_info4': 'Right Index',
-          'finger_info5': 'Left Middle',
-          'finger_info6': 'Right Middle',
-          'finger_info7': 'Left Ring',
-          'finger_info8': 'Right Ring',
-          'finger_info9': 'Left Little',
-          'finger_info10': 'Right Little',
-        };
-        fingerMap.forEach((key, value) {
-          final template = map[key] as String?;
-          if (template != null && template.isNotEmpty) {
-            fingerprints[value] = template;
-          }
-        });
-        return fingerprints;
-      }
+      if (result.isEmpty) return {};
+
+      final map = result.first;
+      final fingerprints = <String, String>{};
+      const fingerMap = {
+        'finger_info1': 'Left Thumb',
+        'finger_info2': 'Right Thumb',
+        'finger_info3': 'Left Index',
+        'finger_info4': 'Right Index',
+        'finger_info5': 'Left Middle',
+        'finger_info6': 'Right Middle',
+        'finger_info7': 'Left Ring',
+        'finger_info8': 'Right Ring',
+        'finger_info9': 'Left Little',
+        'finger_info10': 'Right Little',
+      };
+
+      fingerMap.forEach((key, value) {
+        final template = map[key] as String?;
+        if (template != null && template.isNotEmpty) {
+          fingerprints[value] = template;
+        }
+      });
+
+      return fingerprints;
+    } catch (e, stack) {
+      debugPrint('❌ Error fetching enrolled fingerprints: $e\n$stack');
       return {};
-    } catch (e) {
-      debugPrint('Error fetching enrolled fingerprints: $e');
-      return {};
     }
   }
 
-  /// Insert batch attendance records
-  Future<void> insertBatchAttendance(List<AttendanceModel> records) async {
-    try {
-      final db = await dbHelper.database;
-      final batch = db.batch();
-
-      for (var record in records) {
-        batch.insert('attendance', record.toMap(),
-            conflictAlgorithm: ConflictAlgorithm.replace);
-      }
-
-      await batch.commit(noResult: true);
-      notifyListeners();
-    } catch (e) {
-      debugPrint('Error inserting batch attendance: $e');
-    }
-  }
-
-  /// Fetch attendance records by project and block
-  Future<List<AttendanceModel>> getAttendanceByProjectBlock(
-      int projectId, int blockId) async {
-    try {
-      final db = await dbHelper.database;
-      final result = await db.query(
-        'attendance',
-        where: 'project_id = ? AND block_id = ?',
-        whereArgs: [projectId, blockId],
-        orderBy: 'create_at DESC',
-      );
-      return result.map((map) => AttendanceModel.fromMap(map)).toList();
-    } catch (e) {
-      debugPrint('Error fetching attendance by project/block: $e');
-      return [];
-    }
-  }
-
-  /// Helper to get an employee by fingerprint (delegates to DatabaseHelper)
+  /// Helper to get an employee by fingerprint
   Future<EmployeeModel?> getEmployeeByFingerprint(String scannedTemplate) async {
     try {
-      final dbHelper = DatabaseHelper.instance;
-      // Use a threshold that aligns with ZKTeco recommendation (adjust based on testing)
       return await dbHelper.getEmployeeByFingerprint(scannedTemplate, threshold: 70.0);
-    } catch (e) {
-      debugPrint('Error getting employee by fingerprint: $e');
+    } catch (e, stack) {
+      debugPrint('❌ Error getting employee by fingerprint: $e\n$stack');
       return null;
     }
   }
-
-  // Static DateFormat instances for consistency
-  static final _timeLogFormat = DateFormat('HH:mm:ss');
-  static final _dateLogFormat = DateFormat('yyyy-MM-dd');
 }

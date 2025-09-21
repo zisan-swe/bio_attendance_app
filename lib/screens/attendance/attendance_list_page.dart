@@ -100,7 +100,7 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Attendance Records'),
+        title: const Text('Attendance List Records '),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

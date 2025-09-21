@@ -9,6 +9,7 @@ import '../../providers/attendance_provider.dart';
 import '../../services/location_service.dart';
 import '../../services/fingerprint_service.dart';
 import '../attendance/attendance_list_page.dart';
+import '../../services/api_service.dart';
 
 class AttendancePage extends StatefulWidget {
   const AttendancePage({super.key});
@@ -61,12 +62,12 @@ class _AttendancePageState extends State<AttendancePage> {
     if (isScanning) return;
     setState(() => isScanning = true);
 
-    final fingerprintService = FingerprintService(); // ✅ Instance বানালাম
+    final fingerprintService = FingerprintService();
     String? scannedTemplate;
 
     try {
-      scannedTemplate = await fingerprintService.scanFingerprint(); // ✅ Static না, instance call
-      debugPrint("Scanned Template: $scannedTemplate"); // Log the scanned template
+      scannedTemplate = await fingerprintService.scanFingerprint();
+      debugPrint("Scanned Template: $scannedTemplate");
       if (scannedTemplate == null || scannedTemplate.isEmpty) {
         _showSnack("❌ Invalid or empty fingerprint scan.", isError: true);
         setState(() => isScanning = false);
@@ -88,7 +89,7 @@ class _AttendancePageState extends State<AttendancePage> {
     EmployeeModel? employee;
     try {
       employee = await attendanceProvider.getEmployeeByFingerprint(scannedTemplate);
-      debugPrint("Employee Found: ${employee?.name ?? 'None'}"); // Log the matched employee
+      debugPrint("Employee Found: ${employee?.name ?? 'None'}");
       if (employee == null) {
         _showSnack("❌ No matching employee found.", isError: true);
         setState(() => isScanning = false);
@@ -101,23 +102,22 @@ class _AttendancePageState extends State<AttendancePage> {
       return;
     }
 
-    // Use the selected finger's template (fallback to first if none selected)
     final selectedFinger = fingerScanStatus.entries.firstWhere(
           (e) => e.value,
       orElse: () => MapEntry('Left Thumb', true),
     ).key;
-    final storedTemplate = employee.fingerprints[selectedFinger] ?? employee.fingerInfo1;
-    debugPrint("Stored Template ($selectedFinger): $storedTemplate"); // Log stored template
+
+    final storedTemplate =
+        employee.fingerprints[selectedFinger] ?? employee.fingerInfo1;
+    debugPrint("Stored Template ($selectedFinger): $storedTemplate");
     if (storedTemplate == null || storedTemplate.isEmpty) {
       _showSnack("❌ No stored template for $selectedFinger.", isError: true);
       setState(() => isScanning = false);
       return;
     }
 
-    // Auto-save and redirect on successful match
     await _saveAndRedirect(employee, selectedFinger);
   }
-
 
   Future<void> _saveAndRedirect(EmployeeModel employee, String selectedFinger) async {
     final now = DateTime.now().toUtc().add(const Duration(hours: 6));
@@ -132,7 +132,7 @@ class _AttendancePageState extends State<AttendancePage> {
       id: 0,
       deviceId: 'Device001',
       projectId: 1,
-      blockId: 1,
+      blockId: 8,
       employeeNo: employee.employeeNo,
       workingDate: date,
       attendanceStatus: selectedAction,
@@ -144,16 +144,35 @@ class _AttendancePageState extends State<AttendancePage> {
       remarks: '',
       createAt: now.toIso8601String(),
       updateAt: now.toIso8601String(),
+      synced: 0, // initially not synced
     );
 
+    final attendanceProvider = context.read<AttendanceProvider>();
+
     try {
-      await AttendanceProvider().insertAttendance(attendance);
+      // 1️⃣ Save locally
+      final localId = await attendanceProvider.insertAttendance(attendance);
+
+      // 2️⃣ Try API sync (returns bool)
+      final synced = await ApiService.createAttendance(attendance);
+
+      if (synced) {
+        // 3️⃣ Update local DB record as synced
+        await attendanceProvider.updateAttendance(
+          attendance.copyWith(id: localId, synced: 1),
+        );
+
+        _showSnack("✅ Attendance successfully!", isError: false);
+      } else {
+        _showSnack("⚠️ Attendance saved locally. Sync pending.", isError: true);
+      }
+
+      // 4️⃣ Navigate to Attendance List
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const AttendanceListPage()),
       );
-      _showSnack("✅ Attendance logged successfully!", isError: false);
     } catch (e) {
       debugPrint("Save Error: $e");
       _showSnack("❌ Failed to log attendance: $e", isError: true);
@@ -161,6 +180,7 @@ class _AttendancePageState extends State<AttendancePage> {
       setState(() => isScanning = false);
     }
   }
+
 
   void _showSnack(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(

@@ -270,7 +270,8 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
 
       // 🔹 API তে পাঠানো
       try {
-        await ApiService.createLabour(employee);
+        // await ApiService.createLabour(employee);
+        await ApiService.createLabour(employee.toJson());
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
               content: Text('✅ Employee saved & uploaded to API')),

@@ -2,9 +2,9 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/employee_model.dart';
 import '../models/attendance_model.dart';
-import 'dart:convert'; // For base64Encode / base64Decode (if needed)
-import 'dart:developer' as dev; // For debug logging
-import '../../services/fingerprint_service.dart'; // Assume this integrates with ZKFinger SDK
+import '../models/setting_model.dart';
+import 'dart:developer' as dev;
+import '../../services/fingerprint_service.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -24,12 +24,13 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 10,
+      version: 12, // ⬅️ bumped version so _onUpgrade runs
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
   }
 
+  /// Create all tables fresh (first install or after delete DB)
   Future<void> _createDB(Database db, int version) async {
     // Employee table
     await db.execute('''
@@ -80,24 +81,60 @@ class DatabaseHelper {
         update_at TEXT NOT NULL
       )
     ''');
+
+    // Settings table
+    await db.execute('''
+      CREATE TABLE settings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        value TEXT,
+        slug TEXT UNIQUE
+      )
+    ''');
   }
 
+  /// Runs when version number increases
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    // Add fingerprint column if upgrading from < v10
     if (oldVersion < 10) {
       final result = await db.rawQuery("PRAGMA table_info(attendance)");
       final columns = result.map((row) => row['name'] as String?).whereType<String>().toList();
 
       if (!columns.contains('fingerprint')) {
-        await db.execute('ALTER TABLE attendance ADD COLUMN fingerprint TEXT NOT NULL DEFAULT ""');
+        await db.execute(
+          'ALTER TABLE attendance ADD COLUMN fingerprint TEXT NOT NULL DEFAULT ""',
+        );
       }
+    }
+
+    // Update settings table if upgrading from < v11
+    if (oldVersion < 11) {
+      await db.execute('ALTER TABLE settings RENAME TO settings_old');
+      await db.execute('''
+    CREATE TABLE settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      value TEXT,
+      slug TEXT UNIQUE
+    )
+  ''');
+      await db.execute('''
+    INSERT INTO settings (id, name, value, slug)
+    SELECT id, company_name, company_value, slug FROM settings_old
+  ''');
+      await db.execute('DROP TABLE settings_old');
     }
   }
 
-  // Employee CRUD operations
+
+  // ---------------- Employee CRUD ----------------
   Future<int> insertEmployee(EmployeeModel employee) async {
     final db = await instance.database;
-    return await db.insert('employee', employee.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    return await db.insert(
+      'employee',
+      employee.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<EmployeeModel>> getAllEmployees({required int employeeType}) async {
@@ -140,10 +177,14 @@ class DatabaseHelper {
     return result.isNotEmpty ? EmployeeModel.fromMap(result.first) : null;
   }
 
-  // Attendance CRUD
+  // ---------------- Attendance CRUD ----------------
   Future<int> insertAttendance(AttendanceModel attendance) async {
     final db = await instance.database;
-    return await db.insert('attendance', attendance.toMap());
+    return await db.insert(
+      'attendance',
+      attendance.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<int> deleteAttendance(int id) async {
@@ -161,26 +202,19 @@ class DatabaseHelper {
     );
   }
 
-  Future<void> close() async {
-    if (_database != null && _database!.isOpen) {
-      await _database!.close();
-      _database = null;
-    }
-  }
-
-  // Fingerprint matching
+  // ---------------- Fingerprint matching ----------------
   Future<EmployeeModel?> getEmployeeByFingerprint(
-      String scannedTemplate, {double threshold = 40.0}
-      ) async {
+      String scannedTemplate, {
+        double threshold = 40.0,
+      }) async {
     final db = await database;
-
     final List<Map<String, dynamic>> maps = await db.query('employee');
     if (maps.isEmpty) return null;
 
     for (var map in maps) {
       EmployeeModel employee = EmployeeModel.fromMap(map);
 
-      // Collect all non-null finger_info templates for this employee
+      // Collect all finger_info templates
       final storedTemplates = <String>[];
       for (int i = 1; i <= 10; i++) {
         String? storedTemplate = map['finger_info$i'] as String?;
@@ -191,7 +225,8 @@ class DatabaseHelper {
 
       if (storedTemplates.isNotEmpty) {
         try {
-          final verificationResult = await FingerprintService.verifyFingerprint(
+          final verificationResult =
+          await FingerprintService.verifyFingerprint(
             scannedTemplate: scannedTemplate,
             storedTemplates: storedTemplates,
           );
@@ -202,20 +237,90 @@ class DatabaseHelper {
               '✅ Matched fingerprint for ${employee.name} with score: ${verificationResult['score']}',
               name: 'DatabaseHelper',
             );
-            return employee; // Return matched employee
+            return employee;
           }
         } catch (e) {
-          dev.log('❌ Verification error for ${employee.name} (finger_info): $e',
-              name: 'DatabaseHelper');
-          continue; // Move to next employee
+          dev.log(
+            '❌ Verification error for ${employee.name}: $e',
+            name: 'DatabaseHelper',
+          );
+          continue;
         }
       }
     }
 
     dev.log('⚠️ No fingerprint match found', name: 'DatabaseHelper');
-    return null; // No match found
+    return null;
+  }
+
+  // ---------------- Settings CRUD ----------------
+  Future<int> insertSetting(SettingModel setting) async {
+    final db = await instance.database;
+    return await db.insert(
+      'settings',
+      setting.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<SettingModel>> getAllSettings() async {
+    final db = await instance.database;
+    final result = await db.query('settings');
+    return result.map((e) => SettingModel.fromMap(e)).toList();
+  }
+
+  Future<SettingModel?> getSettingBySlug(String slug) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'settings',
+      where: 'slug = ?',
+      whereArgs: [slug],
+      limit: 1,
+    );
+    return result.isNotEmpty ? SettingModel.fromMap(result.first) : null;
+  }
+
+  Future<int> updateSetting(SettingModel setting) async {
+    final db = await instance.database;
+    return await db.update(
+      'settings',
+      setting.toMap(),
+      where: 'id = ?',
+      whereArgs: [setting.id],
+    );
+  }
+
+  Future<int> deleteSetting(int id) async {
+    final db = await instance.database;
+    return await db.delete(
+      'settings',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // database_helper.dart
+
+  Future<SettingModel?> getFirstSetting() async {
+    final db = await instance.database;
+    final maps = await db.query(
+      'settings',
+      orderBy: 'id ASC',
+      limit: 1,
+    );
+
+    if (maps.isNotEmpty) {
+      return SettingModel.fromMap(maps.first);
+    }
+    return null;
   }
 
 
-
+  // ---------------- Close DB ----------------
+  Future<void> close() async {
+    if (_database != null && _database!.isOpen) {
+      await _database!.close();
+      _database = null;
+    }
+  }
 }

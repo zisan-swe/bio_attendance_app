@@ -1,3 +1,5 @@
+import 'package:biometric_attendance/screens/setting/setting_seeding_page.dart';
+import 'package:biometric_attendance/screens/settings.dart';
 import 'package:flutter/material.dart';
 import 'attendance/attendance_list_page.dart';
 import 'enroll_screen.dart';
@@ -6,7 +8,6 @@ import 'finger/fingerprint_test_page.dart';
 import 'worker/worker_page.dart';
 import 'employee/employee_page.dart';
 import 'attendance/attendance_page.dart';
-
 
 class HomeScreen extends StatelessWidget {
   Widget _buildButton({
@@ -29,7 +30,10 @@ class HomeScreen extends StatelessWidget {
           elevation: 6,
         ),
         onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => destination));
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => destination),
+          );
         },
         icon: Icon(icon, size: 24),
         label: Text(
@@ -61,7 +65,7 @@ class HomeScreen extends StatelessWidget {
             color: Colors.grey[600],
           ),
         ),
-        SizedBox(height: 80),
+        SizedBox(height: 60),
       ],
     );
   }
@@ -71,97 +75,96 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-              SizedBox(height: 40),
-              _buildHeader(),
-              // _buildButton(
-              //   context: context,
-              //   label: 'Worker',
-              //   icon: Icons.person,
-              //   destination: WorkerPage(),
-              //   color: Colors.indigo,
-              // ),
-              // _buildButton(
-              //   context: context,
-              //   label: 'Employee',
-              //   icon: Icons.badge,
-              //   destination: EmployeePage(),
-              //   color: Colors.green,
-              // ),
-              // _buildButton(
-              //   context: context,
-              //   label: 'Enroll Worker',
-              //   icon: Icons.fingerprint,
-              //   destination: WorkerPage(),
-              //   color: Colors.orange,
-              // ),
-              // _buildButton(
-              //   context: context,
-              //   label: 'Mark Attendance',
-              //   icon: Icons.check_circle_outline,
-              //   destination: WorkerPage(),
-              //   color: Colors.blueAccent,
-              // ),
+        child: Stack(
+          children: [
+            // Main content
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  SizedBox(height: 40),
+                  _buildHeader(),
+                  SizedBox(
+                    width: 250,
+                    child: _buildButton(
+                      context: context,
+                      label: 'Employee',
+                      icon: Icons.badge,
+                      destination: EmployeePage(),
+                      color: Colors.green,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 250,
+                    child: _buildButton(
+                      context: context,
+                      label: 'Worker',
+                      icon: Icons.person,
+                      destination: WorkerPage(),
+                      color: Colors.indigo,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 250,
+                    child: _buildButton(
+                      context: context,
+                      label: 'Finger Test',
+                      icon: Icons.fingerprint,
+                      destination: FingerprintTestPage(),
+                      color: Colors.orange,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 250,
+                    child: _buildButton(
+                      context: context,
+                      label: 'Attendance',
+                      icon: Icons.check_circle_outline,
+                      destination: AttendancePage(),
+                      color: Colors.blueAccent,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 250,
+                    child: _buildButton(
+                      context: context,
+                      label: 'Attendance List',
+                      icon: Icons.list_alt,
+                      destination: AttendanceListPage(),
+                      color: Colors.teal,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 250,
+                    child: _buildButton(
+                      context: context,
+                      label: 'Setting ',
+                      icon: Icons.settings,
+                      destination: SettingSeedingPage(),
+                      color: Colors.blueGrey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
-              //Same Weight Box
-              SizedBox(
-                width: 250,
-                child: _buildButton(
-                  context: context,
-                  label: 'Employee',
-                  icon: Icons.badge,
-                  destination: EmployeePage(),
-                  color: Colors.green,
+            // Bottom-left Settings Icon
+            Align(
+              alignment: Alignment.bottomLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: IconButton(
+                  icon: Icon(Icons.settings, size: 35, color: Colors.grey[800]),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => SettingsPage()),
+                    );
+                  },
                 ),
               ),
-
-              SizedBox(
-                width: 250, // Set same width for all buttons
-                child: _buildButton(
-                  context: context,
-                  label: 'Worker',
-                  icon: Icons.person,
-                  destination: WorkerPage(),
-                  color: Colors.indigo,
-                ),
-              ),
-
-              SizedBox(
-                width: 250,
-                // height: 70,
-                child: _buildButton(
-                  context: context,
-                  label: 'Finger Test',
-                  icon: Icons.fingerprint,
-                  destination: FingerprintTestPage(),
-                  color: Colors.orange,
-                ),
-              ),
-              SizedBox(
-                width: 250,
-                child: _buildButton(
-                  context: context,
-                  label: 'Attendance',
-                  icon: Icons.check_circle_outline,
-                  destination: AttendancePage(),
-                  color: Colors.blueAccent,
-                ),
-              ),
-              SizedBox(
-                width: 250,
-                child: _buildButton(
-                  context: context,
-                  label: 'Attendance List',
-                   icon: Icons.list_alt,
-                  destination: AttendanceListPage(),
-                  color: Colors.teal,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

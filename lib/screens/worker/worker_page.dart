@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'worker_create_page.dart';
 import '../../models/employee_model.dart';
 import '../../db/database_helper.dart';
+import '../../services/api_service.dart';
+import 'worker_create_page.dart';
 import 'worker_edit_page.dart';
 import 'worker_details.dart';
-
 
 class WorkerPage extends StatefulWidget {
   const WorkerPage({super.key});
@@ -16,8 +16,8 @@ class WorkerPage extends StatefulWidget {
 
 class _WorkerPageState extends State<WorkerPage> {
   List<EmployeeModel> employees = [];
-
-  Map<int, File> _profileImages = { };
+  Map<int, File> _profileImages = {};
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -26,30 +26,43 @@ class _WorkerPageState extends State<WorkerPage> {
   }
 
   Future<void> _loadEmployees(int employeeType) async {
+    setState(() => _isLoading = true);
     try {
-      final data = await DatabaseHelper.instance.getAllEmployees(employeeType: employeeType);
+      // 1️⃣ Fetch local SQLite employees
+      final localEmployees = await DatabaseHelper.instance.getAllEmployees(employeeType: employeeType);
 
-      // Build the profileImages map using stored image paths
+      // Build profile images map
       Map<int, File> imageMap = {};
-      for (var emp in data) {
+      for (var emp in localEmployees) {
         if (emp.imagePath.isNotEmpty) {
           imageMap[emp.id!] = File(emp.imagePath);
         }
       }
 
+      // 2️⃣ Fetch API employees
+      List<EmployeeModel> apiEmployees = [];
+      try {
+        apiEmployees = await ApiService.fetchEmployees(code: "01", blockId: 1);
+      } catch (e) {
+        debugPrint("API fetch error: $e");
+      }
+
+      // 3️⃣ Merge local + API employees (optional: avoid duplicates by employeeNo or id)
+      final mergedEmployees = {
+        for (var e in [...localEmployees, ...apiEmployees])
+          e.employeeNo: e
+      }.values.toList();
+
       setState(() {
-        employees = data;
+        employees = mergedEmployees;
         _profileImages = imageMap;
+        _isLoading = false;
       });
     } catch (e) {
       debugPrint("Error loading employees: $e");
-      // Optionally show UI error feedback
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   const SnackBar(content: Text('Failed to load employees')),
-      // );
+      setState(() => _isLoading = false);
     }
   }
-
 
   void _navigateToCreate({EmployeeModel? employee}) async {
     final result = await Navigator.push(
@@ -84,7 +97,7 @@ class _WorkerPageState extends State<WorkerPage> {
     );
 
     if (shouldDelete == true) {
-      _deleteEmployee(id); // Call the actual delete method
+      _deleteEmployee(id);
     }
   }
 
@@ -94,7 +107,7 @@ class _WorkerPageState extends State<WorkerPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ Worker deleted')),
       );
-      _loadEmployees(2); // Refresh the list
+      _loadEmployees(2);
     } catch (e) {
       debugPrint("Delete error: $e");
       ScaffoldMessenger.of(context).showSnackBar(
@@ -102,7 +115,6 @@ class _WorkerPageState extends State<WorkerPage> {
       );
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +126,9 @@ class _WorkerPageState extends State<WorkerPage> {
         toolbarOpacity: 1,
         elevation: 100,
       ),
-      body: employees.isEmpty
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : employees.isEmpty
           ? const Center(child: Text('No Workers added yet.'))
           : ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -127,57 +141,65 @@ class _WorkerPageState extends State<WorkerPage> {
             ),
             elevation: 4,
             margin: const EdgeInsets.symmetric(vertical: 8),
-              child: ListTile(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => WorkerDetailsPage(employee: emp),
-                    ),
-                  );
-                },
-                leading: CircleAvatar(
-                  radius: 30,
-                  backgroundImage: _profileImages[emp.id] != null
-                      ? FileImage(_profileImages[emp.id]!)
-                      : null,
-                  backgroundColor: Colors.grey[300],
-                  child: _profileImages[emp.id] == null
-                      ? const Icon(Icons.person)
-                      : null,
-                ),
-                title: Text(emp.name),
-                subtitle: Text(
-                    'ID: ${emp.id} • Type: ${emp.employeeType == 2 ? 'Employee' : 'Worker'}'
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.blue),
-                      onPressed: () async {
-                        final updated = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => WorkerEditPage(employee: emp),
-                          ),
-                        );
-                        if (updated == true) {
-                          _loadEmployees(2); // Refresh the list
-                        }
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _confirmDeleteEmployee(emp.id!),
-                    ),
-                  ],
-                ),
+            child: ListTile(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => WorkerDetailsPage(employee: emp),
+                  ),
+                );
+              },
+              leading: CircleAvatar(
+                radius: 30,
+                backgroundImage: _profileImages[emp.id] != null
+                    ? FileImage(_profileImages[emp.id]!)
+                    : emp.imagePath.isNotEmpty
+                    ? NetworkImage(emp.imagePath) as ImageProvider
+                    : null,
+                backgroundColor: Colors.grey[300],
+                child: (_profileImages[emp.id] == null && emp.imagePath.isEmpty)
+                    ? const Icon(Icons.person)
+                    : null,
               ),
+              title: Text(emp.name),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                      'ID: ${emp.id ?? '-'} • Type: ${emp.employeeType == 2 ? 'Employee' : 'Worker'}'),
+                  if (emp.dailyWages > 0)
+              Text("Daily Wages: ${emp.dailyWages}"),
+
+                ],
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.blue),
+                    onPressed: () async {
+                      final updated = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => WorkerEditPage(employee: emp),
+                        ),
+                      );
+                      if (updated == true) {
+                        _loadEmployees(2);
+                      }
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () => _confirmDeleteEmployee(emp.id!),
+                  ),
+                ],
+              ),
+            ),
           );
         },
       ),
-
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _navigateToCreate(),
         icon: const Icon(Icons.add),

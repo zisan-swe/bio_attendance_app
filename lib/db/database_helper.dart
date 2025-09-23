@@ -177,6 +177,54 @@ class DatabaseHelper {
     return result.isNotEmpty ? EmployeeModel.fromMap(result.first) : null;
   }
 
+  // Future<void> insertOrUpdateEmployee(EmployeeModel employee) async {
+  //   final db = await database;
+  //
+  //   final existing = await db.query(
+  //     'employee',
+  //     where: 'employeeNo = ?',
+  //     whereArgs: [employee.employeeNo],
+  //   );
+  //
+  //   if (existing.isNotEmpty) {
+  //     // Update
+  //     await db.update(
+  //       'employee',
+  //       employee.toMap(),
+  //       where: 'employeeNo = ?',
+  //       whereArgs: [employee.employeeNo],
+  //     );
+  //   } else {
+  //     // Insert
+  //     await db.insert(
+  //       'employee',
+  //       employee.toMap(),
+  //       conflictAlgorithm: ConflictAlgorithm.replace,
+  //     );
+  //   }
+  // }
+  //
+  // Future<bool> employeeExists(String employeeNo) async {
+  //   final db = await database;
+  //   final result = await db.query(
+  //     'employee',
+  //     where: 'employeeNo = ?',
+  //     whereArgs: [employeeNo],
+  //   );
+  //   return result.isNotEmpty;
+  // }
+  //
+  // Future<int> insertEmployee(EmployeeModel employee) async {
+  //   final db = await database;
+  //   return await db.insert(
+  //     'employee',
+  //     employee.toMap(),
+  //     conflictAlgorithm: ConflictAlgorithm.replace,
+  //   );
+  // }
+
+
+
   // ---------------- Attendance CRUD ----------------
   Future<int> insertAttendance(AttendanceModel attendance) async {
     final db = await instance.database;

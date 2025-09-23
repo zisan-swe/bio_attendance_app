@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/attendance_model.dart';
+import '../models/employee_model.dart';
 
 class ApiService {
   static const String baseUrl = "https://kisan.rahmangrouperp.com/api/v1";
@@ -72,6 +73,59 @@ class ApiService {
       return false; // Sync failed due to exception
     }
   }
+
+  /// --- Fetch Employee / Labour List ---
+  static Future<List<EmployeeModel>> fetchEmployees({
+    required String code,
+    required int blockId,
+  }) async {
+    final url = Uri.parse("$baseUrl/labour-list?code=$code&block_id=$blockId");
+
+    try {
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> employees = data['data'] ?? [];
+        return employees.map((e) => EmployeeModel.fromJson(e)).toList();
+      } else {
+        print("❌ Failed to fetch employees: ${response.statusCode}");
+        return [];
+      }
+    } catch (e) {
+      print("❌ Exception while fetching employees: $e");
+      return [];
+    }
+  }
+
+  /// --- Update Employee ---
+  static Future<bool> updateEmployee(EmployeeModel employee) async {
+    final url = Uri.parse("$baseUrl/labour-update/${employee.id}");
+    final headers = {"Content-Type": "application/json"};
+
+    try {
+      final response = await http.put(
+        url,
+        headers: headers,
+        body: jsonEncode(employee.toJson()),
+      );
+
+      if (response.statusCode == 200) {
+        print("✅ Employee updated successfully: ${response.body}");
+        return true;
+      } else {
+        print("❌ Failed to update employee: ${response.statusCode}");
+        print("Response: ${response.body}");
+        return false;
+      }
+    } catch (e) {
+      print("❌ Exception while updating employee: $e");
+      return false;
+    }
+  }
+
+
+
 
 
 }

@@ -80,13 +80,24 @@ class EmployeeModel {
 
   /// --- From API Response ---
   factory EmployeeModel.fromJson(Map<String, dynamic> json) {
+    // Handle daily_wages as JSON object
+    double latestDailyWage = 0.0;
+    if (json['daily_wages'] != null && json['daily_wages'] is Map) {
+      Map<String, dynamic> wages = Map<String, dynamic>.from(json['daily_wages']);
+      if (wages.isNotEmpty) {
+        // Get latest date
+        final latestDate = wages.keys.reduce((a, b) => a.compareTo(b) > 0 ? a : b);
+        latestDailyWage = (wages[latestDate] as num).toDouble();
+      }
+    }
+
     return EmployeeModel(
       id: json['id'] as int?,
       name: json['name'] ?? '',
       email: json['email'] ?? '',
       employeeNo: json['employee_no'] ?? '',
       nid: json['nid'] ?? '',
-      dailyWages: (json['daily_salary'] as num?)?.toDouble() ?? 0.0,
+      dailyWages: latestDailyWage, // Use latest
       phone: json['mobile'] ?? '',
       fatherName: json['father_name'] ?? '',
       motherName: json['mother_name'] ?? '',
@@ -166,7 +177,8 @@ class EmployeeModel {
       'mother_name': motherName,
       'dob': dob,
       'joining_date': joiningDate,
-      'employee_type': employeeType,
+      'employee_type': 'labour',
+      'company_id': '1',
       'finger_info1': fingerInfo1,
       'finger_info2': fingerInfo2,
       'finger_info3': fingerInfo3,

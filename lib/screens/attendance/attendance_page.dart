@@ -131,8 +131,8 @@ class _AttendancePageState extends State<AttendancePage> {
     final attendance = AttendanceModel(
       id: 0,
       deviceId: 'Device001',
-      projectId: 1,
-      blockId: 8,
+      projectId: 01,
+      blockId: 1,
       employeeNo: employee.employeeNo,
       workingDate: date,
       attendanceStatus: selectedAction,
@@ -168,11 +168,11 @@ class _AttendancePageState extends State<AttendancePage> {
       }
 
       // 4️⃣ Navigate to Attendance List
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const AttendanceListPage()),
-      );
+      // if (!mounted) return;
+      // Navigator.pushReplacement(
+      //   context,
+      //   MaterialPageRoute(builder: (context) => const AttendanceListPage()),
+      // );
     } catch (e) {
       debugPrint("Save Error: $e");
       _showSnack("❌ Failed to log attendance: $e", isError: true);

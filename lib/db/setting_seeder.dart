@@ -44,21 +44,21 @@ class SettingSeeder extends StatelessWidget {
     List<Map<String, dynamic>> dummySettings = [
       {
         'name': 'Project Code',
-        'value': '1',
-        'slug': 'project_code',
+        'value': '01',
+        'slug': 'project_id',
       },
 
       {
         'name': 'Block',
-        'value': '2',
-        'slug': 'block',
+        'value': '1',
+        'slug': 'block_id',
       },
 
-      {
-        'name': 'Project 1',
-        'value': '33',
-        'slug': 'project1',
-      },
+      // {
+      //   'name': 'Project 1',
+      //   'value': '33',
+      //   'slug': 'project1',
+      // },
 
     ];
 

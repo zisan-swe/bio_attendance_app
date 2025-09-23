@@ -13,13 +13,32 @@ class _LoginScreenState extends State<LoginScreen> {
   final passwordController = TextEditingController();
   String errorMessage = '';
   bool _obscurePassword = true;
+  bool _isLoading = false; // Show loading during API call
 
+  /// Login method
   void _login() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
 
+    if (email.isEmpty || password.isEmpty) {
+      setState(() {
+        errorMessage = 'Please enter both email and password.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      errorMessage = '';
+    });
+
     final success = await auth.login(email, password);
+
+    setState(() {
+      _isLoading = false;
+    });
+
     if (success) {
       Navigator.pushReplacement(
         context,
@@ -32,6 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /// Header widget
   Widget _buildHeader() {
     return Column(
       children: [
@@ -50,6 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  /// TextField builder
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -70,11 +91,11 @@ class _LoginScreenState extends State<LoginScreen> {
         fillColor: Colors.grey[100],
         suffixIcon: onToggleVisibility != null
             ? IconButton(
-                icon: Icon(
-                  obscureText ? Icons.visibility_off : Icons.visibility,
-                ),
-                onPressed: onToggleVisibility,
-              )
+          icon: Icon(
+            obscureText ? Icons.visibility_off : Icons.visibility,
+          ),
+          onPressed: onToggleVisibility,
+        )
             : null,
       ),
     );
@@ -95,6 +116,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     _buildHeader(),
+
+                    /// Error message
                     if (errorMessage.isNotEmpty)
                       Container(
                         margin: EdgeInsets.only(bottom: 12),
@@ -116,12 +139,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           ],
                         ),
                       ),
+
+                    /// Email
                     _buildTextField(
                       controller: emailController,
                       label: 'Email',
                       icon: Icons.email,
                     ),
                     SizedBox(height: 16),
+
+                    /// Password
                     _buildTextField(
                       controller: passwordController,
                       label: 'Password',
@@ -134,13 +161,27 @@ class _LoginScreenState extends State<LoginScreen> {
                       },
                     ),
                     SizedBox(height: 24),
+
+                    /// Login button
                     SizedBox(
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton.icon(
-                        onPressed: _login,
-                        icon: Icon(Icons.login),
-                        label: Text('Login', style: TextStyle(fontSize: 18)),
+                        onPressed: _isLoading ? null : _login,
+                        icon: _isLoading
+                            ? SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                            : Icon(Icons.login),
+                        label: Text(
+                          _isLoading ? 'Logging in...' : 'Login',
+                          style: TextStyle(fontSize: 18),
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blueAccent,
                           shape: RoundedRectangleBorder(

@@ -166,7 +166,8 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
                       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: _getStatusColor(attendance.status),
+                          // backgroundColor: _getStatusColor(attendance.status),
+                          backgroundColor: Colors.lightGreenAccent,
                           child: Icon(
                             _getActionIcon(attendance.attendanceStatus),
                             color: Colors.white,

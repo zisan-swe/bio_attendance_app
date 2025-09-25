@@ -1,3 +1,4 @@
+import 'package:biometric_attendance/providers/settings_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'db/database_helper.dart';
@@ -27,6 +28,7 @@ void main() async {
         providers: [
           ChangeNotifierProvider(create: (_) => AuthProvider()),
           ChangeNotifierProvider(create: (_) => EmployeeProvider()),
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
           ChangeNotifierProvider<AttendanceProvider>(
             create: (_) => AttendanceProvider(),
           ),

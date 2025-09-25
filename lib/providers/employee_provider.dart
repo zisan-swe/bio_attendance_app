@@ -8,10 +8,18 @@ class EmployeeProvider with ChangeNotifier {
 
   List<EmployeeModel> get employees => _employees;
 
-  // 🔹 Load all employees from database
-  Future<void> fetchEmployees(int employeeType) async {
+  // 🔹 Load employees by type
+  Future<void> fetchEmployees(String employeeType) async {
     try {
-      _employees = await DatabaseHelper.instance.getAllEmployees(employeeType: employeeType);
+      final db = await DatabaseHelper.instance.database;
+
+      final result = await db.query(
+        'employee',
+        where: 'employee_type = ?',
+        whereArgs: [employeeType], // 👈 e.g. "Labour", "Wages", "Staff"
+      );
+
+      _employees = result.map((map) => EmployeeModel.fromMap(map)).toList();
       notifyListeners();
     } catch (e) {
       debugPrint('Error fetching employees: $e');
@@ -41,7 +49,7 @@ class EmployeeProvider with ChangeNotifier {
   }
 
   // 🔹 Delete employee by ID
-  Future<void> deleteEmployee(int id, int employeeType) async {
+  Future<void> deleteEmployee(int id, String employeeType) async {
     try {
       await DatabaseHelper.instance.deleteEmployee(id);
       await fetchEmployees(employeeType);
@@ -76,37 +84,37 @@ class EmployeeProvider with ChangeNotifier {
     }
   }
 
-  // 🔹 Get employee by fingerprint (delegates to FingerprintService)
+  // 🔹 Get employee by fingerprint
   Future<EmployeeModel?> getEmployeeByFingerprint(String scannedTemplate) async {
     try {
-      // Use FingerprintService statically with all enrolled fingerprints
-      final enrolledFingerprints = _getAllEnrolledFingerprints(); // Get all templates
+      final enrolledFingerprints = _getAllEnrolledFingerprints();
       if (enrolledFingerprints.isEmpty) {
         debugPrint('No enrolled fingerprints available locally');
-        // Fall back to DatabaseHelper
-        return await DatabaseHelper.instance.getEmployeeByFingerprint(scannedTemplate, threshold: 70.0);
+        return await DatabaseHelper.instance
+            .getEmployeeByFingerprint(scannedTemplate, threshold: 70.0);
       }
 
       final verificationResult = await FingerprintService.verifyFingerprint(
         scannedTemplate: scannedTemplate,
-        storedTemplates: enrolledFingerprints, // Provide required parameter
+        storedTemplates: enrolledFingerprints,
       );
 
-      if (verificationResult['matched'] == true && (verificationResult['score'] ?? 0) >= 70.0) {
+      if (verificationResult['matched'] == true &&
+          (verificationResult['score'] ?? 0) >= 70.0) {
         debugPrint("✅ Matched fingerprint with score: ${verificationResult['score']}");
         final matchedEmployeeId = verificationResult['matchedEmployeeId'] as int?;
         return _getEmployeeFromLocalList(matchedEmployeeId);
       }
 
-      // Fall back to DatabaseHelper for a full search if local match fails
-      return await DatabaseHelper.instance.getEmployeeByFingerprint(scannedTemplate, threshold: 70.0);
+      return await DatabaseHelper.instance
+          .getEmployeeByFingerprint(scannedTemplate, threshold: 70.0);
     } catch (e) {
       debugPrint('Error matching fingerprint: $e');
       return null;
     }
   }
 
-  // Helper to get all enrolled fingerprints from local employees
+  // 🔹 Helper to get all enrolled fingerprints
   List<String> _getAllEnrolledFingerprints() {
     final fingerprints = <String>[];
     for (var emp in _employees) {
@@ -123,7 +131,7 @@ class EmployeeProvider with ChangeNotifier {
         emp.fingerInfo10,
       ];
       for (var finger in fingerList) {
-        if (finger != null && finger.isNotEmpty) {
+        if (finger.isNotEmpty) {
           fingerprints.add(finger);
         }
       }
@@ -131,7 +139,7 @@ class EmployeeProvider with ChangeNotifier {
     return fingerprints;
   }
 
-  // Helper to get employee by ID from local list
+  // 🔹 Helper to get employee by ID from local list
   EmployeeModel? _getEmployeeFromLocalList(int? id) {
     if (id == null) return null;
     for (var e in _employees) {
@@ -140,7 +148,7 @@ class EmployeeProvider with ChangeNotifier {
     return null;
   }
 
-  // 🔹 Clear all employees (e.g., on logout)
+  // 🔹 Clear all employees
   void clearEmployees() {
     _employees.clear();
     notifyListeners();

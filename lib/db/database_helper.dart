@@ -22,13 +22,18 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
+    // পুরোনো database ডিলিট করে দিন (শুধু dev/test এর জন্য)
+    // await deleteDatabase(path);
+
     return await openDatabase(
       path,
-      version: 12, // ⬅️ bumped version so _onUpgrade runs
+      version: 15, // শুধু version বাড়ান
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
   }
+
+
 
   /// Create all tables fresh (first install or after delete DB)
   Future<void> _createDB(Database db, int version) async {
@@ -46,7 +51,8 @@ class DatabaseHelper {
         mother_name TEXT,
         dob TEXT,
         joining_date TEXT,
-        employee_type INTEGER NOT NULL,
+        employee_type TEXT NOT NULL,
+        company_id INTEGER NOT NULL,
         finger_info1 TEXT,
         finger_info2 TEXT,
         finger_info3 TEXT,
@@ -75,7 +81,7 @@ class DatabaseHelper {
         in_time TEXT,
         out_time TEXT,
         location TEXT,
-        status INTEGER NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('Regular', 'Early', 'Late')),
         remarks TEXT,
         create_at TEXT NOT NULL,
         update_at TEXT NOT NULL
@@ -95,33 +101,50 @@ class DatabaseHelper {
 
   /// Runs when version number increases
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Add fingerprint column if upgrading from < v10
-    if (oldVersion < 10) {
-      final result = await db.rawQuery("PRAGMA table_info(attendance)");
-      final columns = result.map((row) => row['name'] as String?).whereType<String>().toList();
+    dev.log('🛠 Upgrading DB from $oldVersion to $newVersion', name: 'DatabaseHelper');
 
-      if (!columns.contains('fingerprint')) {
-        await db.execute(
-          'ALTER TABLE attendance ADD COLUMN fingerprint TEXT NOT NULL DEFAULT ""',
-        );
+    // Add 'finger_info11' column to employee table as an example if upgrading from <12
+    if (oldVersion < 12) {
+      final empColumns = await db.rawQuery("PRAGMA table_info(employee)");
+      final empCols = empColumns.map((c) => c['name'] as String?).whereType<String>().toList();
+
+      if (!empCols.contains('company_id')) {
+        await db.execute('ALTER TABLE employee ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1');
+        dev.log('✅ Added company_id to employee table', name: 'DatabaseHelper');
+      }
+
+      // Example: Adding more columns if needed
+      // if (!empCols.contains('finger_info11')) {
+      //   await db.execute('ALTER TABLE employee ADD COLUMN finger_info11 TEXT');
+      // }
+    }
+
+    // Attendance table: Add 'status' column if missing
+    if (oldVersion < 12) {
+      final attColumns = await db.rawQuery("PRAGMA table_info(attendance)");
+      final attCols = attColumns.map((c) => c['name'] as String?).whereType<String>().toList();
+
+      if (!attCols.contains('status')) {
+        await db.execute("ALTER TABLE attendance ADD COLUMN status TEXT NOT NULL DEFAULT 'Regular'");
+        dev.log('✅ Added status to attendance table', name: 'DatabaseHelper');
       }
     }
 
-    // Update settings table if upgrading from < v11
+    // Existing logic for settings table upgrade from <11
     if (oldVersion < 11) {
       await db.execute('ALTER TABLE settings RENAME TO settings_old');
       await db.execute('''
-    CREATE TABLE settings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      value TEXT,
-      slug TEXT UNIQUE
-    )
-  ''');
+      CREATE TABLE settings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        value TEXT,
+        slug TEXT UNIQUE
+      )
+    ''');
       await db.execute('''
-    INSERT INTO settings (id, name, value, slug)
-    SELECT id, company_name, company_value, slug FROM settings_old
-  ''');
+      INSERT INTO settings (id, name, value, slug)
+      SELECT id, company_name, company_value, slug FROM settings_old
+    ''');
       await db.execute('DROP TABLE settings_old');
     }
   }
@@ -137,13 +160,17 @@ class DatabaseHelper {
     );
   }
 
-  Future<List<EmployeeModel>> getAllEmployees({required int employeeType}) async {
-    final db = await instance.database;
-    final result = await db.query(
+  Future<List<EmployeeModel>> getAllEmployees({String? employeeType}) async {
+    final db = await database;
+
+    final result = employeeType != null
+        ? await db.query(
       'employee',
       where: 'employee_type = ?',
       whereArgs: [employeeType],
-    );
+    )
+        : await db.query('employee');
+
     return result.map((e) => EmployeeModel.fromMap(e)).toList();
   }
 
@@ -176,52 +203,6 @@ class DatabaseHelper {
     );
     return result.isNotEmpty ? EmployeeModel.fromMap(result.first) : null;
   }
-
-  // Future<void> insertOrUpdateEmployee(EmployeeModel employee) async {
-  //   final db = await database;
-  //
-  //   final existing = await db.query(
-  //     'employee',
-  //     where: 'employeeNo = ?',
-  //     whereArgs: [employee.employeeNo],
-  //   );
-  //
-  //   if (existing.isNotEmpty) {
-  //     // Update
-  //     await db.update(
-  //       'employee',
-  //       employee.toMap(),
-  //       where: 'employeeNo = ?',
-  //       whereArgs: [employee.employeeNo],
-  //     );
-  //   } else {
-  //     // Insert
-  //     await db.insert(
-  //       'employee',
-  //       employee.toMap(),
-  //       conflictAlgorithm: ConflictAlgorithm.replace,
-  //     );
-  //   }
-  // }
-  //
-  // Future<bool> employeeExists(String employeeNo) async {
-  //   final db = await database;
-  //   final result = await db.query(
-  //     'employee',
-  //     where: 'employeeNo = ?',
-  //     whereArgs: [employeeNo],
-  //   );
-  //   return result.isNotEmpty;
-  // }
-  //
-  // Future<int> insertEmployee(EmployeeModel employee) async {
-  //   final db = await database;
-  //   return await db.insert(
-  //     'employee',
-  //     employee.toMap(),
-  //     conflictAlgorithm: ConflictAlgorithm.replace,
-  //   );
-  // }
 
 
 
@@ -362,6 +343,12 @@ class DatabaseHelper {
     }
     return null;
   }
+
+  // Future<int> getSettingInt(String slug, {int defaultValue = 0}) async {
+  //   final setting = await DatabaseHelper.instance.getSettingBySlug(slug);
+  //   if (setting == null || setting.value == null) return defaultValue;
+  //   return int.tryParse(setting.value!) ?? defaultValue;
+  // }
 
 
   // ---------------- Close DB ----------------

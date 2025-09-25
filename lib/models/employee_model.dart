@@ -10,7 +10,8 @@ class EmployeeModel {
   final String motherName;
   final String dob;
   final String joiningDate;
-  final int employeeType;
+  final String employeeType;
+  final int companyId;
   final String fingerInfo1;
   final String fingerInfo2;
   final String fingerInfo3;
@@ -36,6 +37,7 @@ class EmployeeModel {
     required this.dob,
     required this.joiningDate,
     required this.employeeType,
+    required this.companyId,
     required this.fingerInfo1,
     required this.fingerInfo2,
     required this.fingerInfo3,
@@ -63,7 +65,8 @@ class EmployeeModel {
       motherName: map['mother_name'] as String? ?? '',
       dob: map['dob'] as String? ?? '',
       joiningDate: map['joining_date'] as String? ?? '',
-      employeeType: map['employee_type'] as int? ?? 1,
+      employeeType: map['employee_type'] as String? ?? 'Labour',
+      companyId: map['company_id'] as int? ?? 1,
       fingerInfo1: map['finger_info1'] as String? ?? '',
       fingerInfo2: map['finger_info2'] as String? ?? '',
       fingerInfo3: map['finger_info3'] as String? ?? '',
@@ -103,7 +106,8 @@ class EmployeeModel {
       motherName: json['mother_name'] ?? '',
       dob: json['dob'] ?? '',
       joiningDate: json['joining_date'] ?? '',
-      employeeType: json['employee_type'] ?? 1,
+      employeeType: json['employee_type'] ?? 'Labour',
+      companyId: json['company_id'] as int? ?? 1,
       fingerInfo1: json['finger_info1'] ?? '',
       fingerInfo2: json['finger_info2'] ?? '',
       fingerInfo3: json['finger_info3'] ?? '',
@@ -149,6 +153,7 @@ class EmployeeModel {
       'dob': dob,
       'joining_date': joiningDate,
       'employee_type': employeeType,
+      'company_id': companyId,
       'finger_info1': fingerInfo1,
       'finger_info2': fingerInfo2,
       'finger_info3': fingerInfo3,
@@ -177,8 +182,8 @@ class EmployeeModel {
       'mother_name': motherName,
       'dob': dob,
       'joining_date': joiningDate,
-      'employee_type': 'labour',
-      'company_id': '1',
+      'employee_type': employeeType,
+      'company_id': companyId,
       'finger_info1': fingerInfo1,
       'finger_info2': fingerInfo2,
       'finger_info3': fingerInfo3,
@@ -206,7 +211,8 @@ class EmployeeModel {
     String? motherName,
     String? dob,
     String? joiningDate,
-    int? employeeType,
+    String? employeeType,
+    int? companyId,
     String? fingerInfo1,
     String? fingerInfo2,
     String? fingerInfo3,
@@ -232,6 +238,7 @@ class EmployeeModel {
       dob: dob ?? this.dob,
       joiningDate: joiningDate ?? this.joiningDate,
       employeeType: employeeType ?? this.employeeType,
+      companyId: companyId ?? this.companyId,
       fingerInfo1: fingerInfo1 ?? this.fingerInfo1,
       fingerInfo2: fingerInfo2 ?? this.fingerInfo2,
       fingerInfo3: fingerInfo3 ?? this.fingerInfo3,

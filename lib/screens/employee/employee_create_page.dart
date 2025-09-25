@@ -7,6 +7,7 @@ import '../../models/employee_model.dart';
 import '../../providers/employee_provider.dart';
 import '../../services/fingerprint_service.dart';
 import '../../services/api_service.dart';
+import '../../db/database_helper.dart';
 
 class EmployeeCreatePage extends StatefulWidget {
   final EmployeeModel? employee;
@@ -236,6 +237,10 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
       final dailyWages =
           double.tryParse(dailyWagesController.text.trim()) ?? 0.0;
 
+      // ---- Settings থেকে company_id ফেচ ----
+      final setting = await DatabaseHelper.instance.getSettingBySlug('company_id');
+      final companyId = int.tryParse(setting?.value ?? '') ?? 1; // default = 1
+
       final employee = EmployeeModel(
         id: widget.employee?.id,
         name: nameController.text.trim(),
@@ -248,7 +253,8 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
         motherName: motherController.text.trim(),
         dob: dobController.text.trim(),
         joiningDate: joiningController.text.trim(),
-        employeeType: 1,
+        employeeType: 'Wages',
+        companyId:companyId,
         fingerInfo1: fingerTemplates['Left Thumb'] ?? '',
         fingerInfo2: fingerTemplates['Left Index'] ?? '',
         fingerInfo3: fingerTemplates['Left Middle'] ?? '',

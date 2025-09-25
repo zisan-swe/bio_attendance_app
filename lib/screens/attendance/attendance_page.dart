@@ -10,6 +10,8 @@ import '../../services/location_service.dart';
 import '../../services/fingerprint_service.dart';
 import '../attendance/attendance_list_page.dart';
 import '../../services/api_service.dart';
+import '../../db/database_helper.dart';
+
 
 class AttendancePage extends StatefulWidget {
   const AttendancePage({super.key});
@@ -128,11 +130,15 @@ class _AttendancePageState extends State<AttendancePage> {
     final location = await locationService.getCurrentLocation();
     final safeLocation = (location != null && location.isNotEmpty) ? location : 'Unknown';
 
+// Fetch from settings
+    final projectId = await DatabaseHelper.instance.getSettingBySlug('project_id');
+    final blockId = await DatabaseHelper.instance.getSettingBySlug('block_id');
+
     final attendance = AttendanceModel(
       id: 0,
       deviceId: 'Device001',
-      projectId: 01,
-      blockId: 1,
+      projectId: int.tryParse(projectId?.value ?? '0') ?? 0,
+      blockId: int.tryParse(blockId?.value ?? '0') ?? 0,
       employeeNo: employee.employeeNo,
       workingDate: date,
       attendanceStatus: selectedAction,
@@ -140,12 +146,13 @@ class _AttendancePageState extends State<AttendancePage> {
       outTime: (selectedAction == 'Check Out' || selectedAction == 'Break Out') ? time : '',
       location: safeLocation,
       fingerprint: selectedFinger,
-      status: 1,
+      status: 'Regular',
       remarks: '',
       createAt: now.toIso8601String(),
       updateAt: now.toIso8601String(),
-      synced: 0, // initially not synced
+      synced: 0,
     );
+
 
     final attendanceProvider = context.read<AttendanceProvider>();
 
@@ -154,18 +161,33 @@ class _AttendancePageState extends State<AttendancePage> {
       final localId = await attendanceProvider.insertAttendance(attendance);
 
       // 2️⃣ Try API sync (returns bool)
-      final synced = await ApiService.createAttendance(attendance);
+      // final synced = await ApiService.createAttendance(attendance);
+
+      // if (synced) {
+      //   // 3️⃣ Update local DB record as synced
+      //   await attendanceProvider.updateAttendance(
+      //     attendance.copyWith(id: localId, synced: 1),
+      //   );
+      //
+      //   _showSnack("✅ Attendance successfully!", isError: false);
+      // } else {
+      //   _showSnack("⚠️ Attendance saved locally. Sync pending.", isError: true);
+      // }
+
+      final message = await ApiService.createAttendance(attendance);
+      final synced = message.toLowerCase().contains("success");
 
       if (synced) {
-        // 3️⃣ Update local DB record as synced
         await attendanceProvider.updateAttendance(
           attendance.copyWith(id: localId, synced: 1),
         );
-
-        _showSnack("✅ Attendance successfully!", isError: false);
+        _showSnack("✅ $message", isError: false);
       } else {
-        _showSnack("⚠️ Attendance saved locally. Sync pending.", isError: true);
+        _showSnack("⚠️ $message", isError: true);
       }
+
+
+
 
       // 4️⃣ Navigate to Attendance List
       // if (!mounted) return;

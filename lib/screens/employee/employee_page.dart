@@ -15,55 +15,38 @@ class EmployeePage extends StatefulWidget {
 
 class _EmployeePageState extends State<EmployeePage> {
   List<EmployeeModel> employees = [];
-
-  Map<int, File> _profileImages = { };
+  Map<int, File> _profileImages = {};
+  bool _isLoading = true; // ✅ loading state
 
   @override
   void initState() {
     super.initState();
-    _loadEmployees(1);
+    _loadEmployees('Wages'); // default type load
   }
 
-  // Future<void> _loadEmployees() async {
-  //   try {
-  //     final data = await DatabaseHelper.instance.getAllEmployees();
-  //     setState(() {
-  //       employees = data;
-  //     });
-  //   } catch (e) {
-  //     debugPrint("Error loading employees: $e");
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(content: Text('Failed to load employees')),
-  //     );
-  //   }
-  // }
-
-  Future<void> _loadEmployees(int employeeType) async {
+  Future<void> _loadEmployees(String employeeType) async {
+    setState(() => _isLoading = true);
     try {
-      final data = await DatabaseHelper.instance.getAllEmployees(employeeType: employeeType);
+      final localEmployees = await DatabaseHelper.instance.getAllEmployees(employeeType: employeeType);
 
-      // Build the profileImages map using stored image paths
+      // profile image load
       Map<int, File> imageMap = {};
-      for (var emp in data) {
+      for (var emp in localEmployees) {
         if (emp.imagePath.isNotEmpty) {
           imageMap[emp.id!] = File(emp.imagePath);
         }
       }
 
       setState(() {
-        employees = data;
+        employees = localEmployees;
         _profileImages = imageMap;
+        _isLoading = false;
       });
     } catch (e) {
       debugPrint("Error loading employees: $e");
-      // Optional UI feedback
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   const SnackBar(content: Text('No employee records found')),
-      // );
+      setState(() => _isLoading = false);
     }
   }
-
-
 
   void _navigateToCreate({EmployeeModel? employee}) async {
     final result = await Navigator.push(
@@ -74,7 +57,7 @@ class _EmployeePageState extends State<EmployeePage> {
     );
 
     if (result == true) {
-      _loadEmployees(1);
+      _loadEmployees('Wages'); // reload after create
     }
   }
 
@@ -98,7 +81,7 @@ class _EmployeePageState extends State<EmployeePage> {
     );
 
     if (shouldDelete == true) {
-      _deleteEmployee(id); // Call the actual delete method
+      _deleteEmployee(id);
     }
   }
 
@@ -108,7 +91,7 @@ class _EmployeePageState extends State<EmployeePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ Employee deleted')),
       );
-      _loadEmployees(1); // Refresh the list
+      _loadEmployees('Wages'); // refresh list
     } catch (e) {
       debugPrint("Delete error: $e");
       ScaffoldMessenger.of(context).showSnackBar(
@@ -117,6 +100,18 @@ class _EmployeePageState extends State<EmployeePage> {
     }
   }
 
+  String _getEmployeeTypeLabel(String type) {
+    switch (type) {
+      case 'Labour':
+        return 'Labour Worker';
+      case 'Wages':
+        return 'Wages Employee';
+      case 'Staff':
+        return 'Office Staff';
+      default:
+        return type;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -126,7 +121,9 @@ class _EmployeePageState extends State<EmployeePage> {
         backgroundColor: Colors.blueGrey,
         centerTitle: true,
       ),
-      body: employees.isEmpty
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator()) // ✅ Loading state
+          : employees.isEmpty
           ? const Center(child: Text('No employees added yet.'))
           : ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -160,7 +157,8 @@ class _EmployeePageState extends State<EmployeePage> {
               ),
               title: Text(emp.name),
               subtitle: Text(
-                  'ID: ${emp.id} • Type: ${emp.employeeType == 1 ? 'Employee' : 'Worker'}'),
+                'ID: ${emp.id} • Type: ${_getEmployeeTypeLabel(emp.employeeType)}',
+              ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -170,11 +168,12 @@ class _EmployeePageState extends State<EmployeePage> {
                       final updated = await Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => EmployeeEditPage(employee: emp),
+                          builder: (context) =>
+                              EmployeeEditPage(employee: emp),
                         ),
                       );
                       if (updated == true) {
-                        _loadEmployees(1); // Refresh the list
+                        _loadEmployees('Wages');
                       }
                     },
                   ),
@@ -185,11 +184,9 @@ class _EmployeePageState extends State<EmployeePage> {
                 ],
               ),
             ),
-
           );
         },
       ),
-
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _navigateToCreate(),
         icon: const Icon(Icons.add),

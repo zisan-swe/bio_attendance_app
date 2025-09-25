@@ -16,9 +16,19 @@ class AttendanceDetailsPage extends StatelessWidget {
   final DateFormat _dateFormat = DateFormat('MMM dd, yyyy');
   final DateFormat _timeFormat = DateFormat('hh:mm a');
 
-  Color _getStatusColor(int status) {
-    return status == 1 ? Colors.green : Colors.orange;
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'Regular':
+        return Colors.green;
+      case 'Early':
+        return Colors.blue;
+      case 'Late':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
   }
+
 
   IconData _getActionIcon(String action) {
     switch (action) {

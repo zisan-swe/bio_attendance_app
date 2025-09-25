@@ -22,10 +22,10 @@ class _WorkerPageState extends State<WorkerPage> {
   @override
   void initState() {
     super.initState();
-    _loadEmployees(2);
+    _loadEmployees('Labour');
   }
 
-  Future<void> _loadEmployees(int employeeType) async {
+  Future<void> _loadEmployees(String employeeType) async {
     setState(() => _isLoading = true);
     try {
       // 1️⃣ Fetch local SQLite employees
@@ -73,7 +73,7 @@ class _WorkerPageState extends State<WorkerPage> {
     );
 
     if (result == true) {
-      _loadEmployees(2);
+      _loadEmployees('Labour');
     }
   }
 
@@ -107,12 +107,24 @@ class _WorkerPageState extends State<WorkerPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ Worker deleted')),
       );
-      _loadEmployees(2);
+      _loadEmployees('Labour');
     } catch (e) {
       debugPrint("Delete error: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('❌ Failed to delete Worker')),
       );
+    }
+  }
+  String _getEmployeeTypeLabel(String type) {
+    switch (type) {
+      case 'Labour':
+        return 'Labour Worker';
+      case 'Wages':
+        return 'Wages Employee';
+      case 'Staff':
+        return 'Office Staff';
+      default:
+        return type;
     }
   }
 
@@ -167,9 +179,9 @@ class _WorkerPageState extends State<WorkerPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                      'ID: ${emp.id ?? '-'} • Type: ${emp.employeeType == 2 ? 'Employee' : 'Worker'}'),
+                      'ID: ${emp.id ?? '-'} • Type: ${_getEmployeeTypeLabel(emp.employeeType)}'),
                   if (emp.dailyWages > 0)
-              Text("Daily Wages: ${emp.dailyWages}"),
+                    Text("Daily Wages: ${emp.dailyWages}"),
 
                 ],
               ),
@@ -186,7 +198,7 @@ class _WorkerPageState extends State<WorkerPage> {
                         ),
                       );
                       if (updated == true) {
-                        _loadEmployees(2);
+                        _loadEmployees('Labour');
                       }
                     },
                   ),

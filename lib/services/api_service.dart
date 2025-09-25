@@ -33,7 +33,7 @@ class ApiService {
   }
 
   // --- Attendance Create (UPDATED) ---
-  static Future<bool> createAttendance(AttendanceModel attendance) async {
+  static Future<String> createAttendance(AttendanceModel attendance) async {
     final url = Uri.parse("$baseUrl/attendance");
     final headers = {"Content-Type": "application/json"};
 
@@ -43,7 +43,7 @@ class ApiService {
       "block_id": attendance.blockId,
       "employee_no": attendance.employeeNo,
       "working_date": attendance.workingDate,
-      "attendance_date": attendance.workingDate, // same as working_date or a separate field if needed
+      "attendance_date": attendance.workingDate,
       "attendance_status": attendance.attendanceStatus,
       "fingerprint": attendance.fingerprint,
       "in_time": attendance.inTime,
@@ -52,7 +52,6 @@ class ApiService {
       "status": attendance.status,
     };
 
-
     try {
       final response = await http.post(
         url,
@@ -60,19 +59,18 @@ class ApiService {
         body: jsonEncode(body),
       );
 
+      final responseBody = jsonDecode(response.body);
+
       if (response.statusCode == 200 || response.statusCode == 201) {
-        print("✅ Attendance synced successfully: ${response.body}");
-        return true; // Success
+        return responseBody['message'] ?? "Attendance synced successfully!";
       } else {
-        print("❌ Failed to sync attendance: ${response.statusCode}");
-        print("Response: ${response.body}");
-        return false; // Sync failed
+        return responseBody['message'] ?? "Failed to sync attendance.";
       }
     } catch (e) {
-      print("❌ Exception while syncing attendance: $e");
-      return false; // Sync failed due to exception
+      return "Exception occurred: $e";
     }
   }
+
 
   /// --- Fetch Employee / Labour List ---
   static Future<List<EmployeeModel>> fetchEmployees({

@@ -10,7 +10,7 @@ class AttendanceModel {
   final String outTime;
   final String location;
   final String fingerprint;
-  final int status;
+  final String status; // Only 'Regular', 'Early', 'Late'
   final String remarks;
   final String createAt;
   final String updateAt;
@@ -33,7 +33,7 @@ class AttendanceModel {
     required this.createAt,
     required this.updateAt,
     required this.synced,
-  });
+  }) : assert(['Regular', 'Early', 'Late'].contains(status), "Invalid status");
 
   AttendanceModel copyWith({
     int? id,
@@ -47,12 +47,13 @@ class AttendanceModel {
     String? outTime,
     String? location,
     String? fingerprint,
-    int? status,
+    String? status,
     String? remarks,
     String? createAt,
     String? updateAt,
     int? synced,
   }) {
+    final safeStatus = (status != null && ['Regular', 'Early', 'Late'].contains(status)) ? status : this.status;
     return AttendanceModel(
       id: id ?? this.id,
       deviceId: deviceId ?? this.deviceId,
@@ -65,7 +66,7 @@ class AttendanceModel {
       outTime: outTime ?? this.outTime,
       location: location ?? this.location,
       fingerprint: fingerprint ?? this.fingerprint,
-      status: status ?? this.status,
+      status: safeStatus,
       remarks: remarks ?? this.remarks,
       createAt: createAt ?? this.createAt,
       updateAt: updateAt ?? this.updateAt,
@@ -86,7 +87,7 @@ class AttendanceModel {
       'out_time': outTime,
       'location': location,
       'fingerprint': fingerprint,
-      'status': status,
+      'status': ['Regular', 'Early', 'Late'].contains(status) ? status : 'Regular',
       'remarks': remarks,
       'create_at': createAt,
       'update_at': updateAt,
@@ -95,6 +96,11 @@ class AttendanceModel {
   }
 
   factory AttendanceModel.fromMap(Map<String, dynamic> map) {
+    String rawStatus = map['status'] ?? 'Regular';
+    if (!['Regular', 'Early', 'Late'].contains(rawStatus)) {
+      rawStatus = 'Regular';
+    }
+
     return AttendanceModel(
       id: map['id'] ?? 0,
       deviceId: map['device_id'] ?? '',
@@ -107,7 +113,7 @@ class AttendanceModel {
       outTime: map['out_time'] ?? '',
       location: map['location'] ?? '',
       fingerprint: map['fingerprint'] ?? '',
-      status: map['status'] ?? 1,
+      status: rawStatus,
       remarks: map['remarks'] ?? '',
       createAt: map['create_at'] ?? '',
       updateAt: map['update_at'] ?? '',

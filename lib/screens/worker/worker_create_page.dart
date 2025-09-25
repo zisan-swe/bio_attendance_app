@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart'; // ✅ Needed for Provider
 import '../../models/employee_model.dart';
 import '../../providers/employee_provider.dart';
+import '../../db/database_helper.dart';
 
 
 
@@ -127,6 +128,9 @@ class _WorkerCreatePageState extends State<WorkerCreatePage> {
         );
         return;
       }
+      // ---- Settings থেকে company_id ফেচ ----
+      final setting = await DatabaseHelper.instance.getSettingBySlug('company_id');
+      final companyId = int.tryParse(setting?.value ?? '') ?? 1; // default = 1
 
       final employee = EmployeeModel(
         name: nameController.text.trim(),
@@ -139,7 +143,8 @@ class _WorkerCreatePageState extends State<WorkerCreatePage> {
         motherName: motherController.text.trim(),
         dob: dobController.text.trim(),
         joiningDate: joiningController.text.trim(),
-        employeeType: 2, // default
+        employeeType: 'Labour', // Worker type
+        companyId:companyId,
         fingerInfo1: fingerScanStatus['Left Thumb']! ? 'eyJmaW5nZXIiOiAicmlnaHRfaW5kZXgiLCAiaW1hZ2VfcXVhbGl0eSI6IDg1LCAicmVzb2x1dGlvbl9kcGkiOiA1MDAsICJtaW51dGlhZSI6IFt7InR5cGUiOiAicmlkZ2VfZW5kaW5nIiwgIngiOiAxMjMsICJ5IjogOTcsICJhbmdsZSI6IDcyfSwgeyJ0eXBlIjogImJpZnVyY2F0aW9uIiwgIngiOiAxMzQsICJ5IjogMTA1LCAiYW5nbGUiOiAxNTB9LCB7InR5cGUiOiAicmlkZ2VfZW5kaW5nIiwgIngiOiAxNDIsICJ5IjogODgsICJhbmdsZSI6IDQ1fSwgeyJ0eXBlIjogInJpZGdlX2VuZGluZyIsICJ4IjogMTU5LCAieSI6IDk5LCAiYW5nbGUiOiAzMH0sIHsidHlwZSI6ICJiaWZ1cmNhdGlvbiIsICJ4IjogMTQ4LCAieSI6IDExMCwgImFuZ2xlIjogOTV9XX0=' : '',
         fingerInfo2: fingerScanStatus['Left Index']! ? 'W5nZX2' : '',
         fingerInfo3: fingerScanStatus['Left Middle']! ? '1' : '',

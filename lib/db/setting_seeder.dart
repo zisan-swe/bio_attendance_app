@@ -4,66 +4,70 @@ import 'package:path/path.dart';
 
 import '../screens/setting/settings_list_page.dart';
 
-
 class SettingSeeder extends StatelessWidget {
   const SettingSeeder({super.key});
 
   Future<void> seedDummySettings() async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'biometric.db');
+    try {
+      final dbPath = await getDatabasesPath();
+      final path = join(dbPath, 'biometric.db');
 
-    final db = await openDatabase(
-      path,
-      version: 1,
-      onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE IF NOT EXISTS settings(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            value TEXT,
-            slug TEXT
-          )
-        ''');
-      },
-    );
+      final db = await openDatabase(
+        path,
+        version: 2, // 🔼 bump version
+        onCreate: (db, version) async {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS settings(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name TEXT NOT NULL,
+              value TEXT,
+              slug TEXT UNIQUE
+            )
+          ''');
+        },
+      );
 
-    // Ensure table exists
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS settings(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        value TEXT,
-        slug TEXT
-      )
-    ''');
+      // Ensure table exists (if upgrading manually)
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS settings(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          value TEXT,
+          slug TEXT UNIQUE
+        )
+      ''');
 
-    // Clear old data
-    await db.delete('settings');
+      // Clear old data
+      await db.delete('settings');
 
-    // Dummy data
-    List<Map<String, dynamic>> dummySettings = [
-      {
-        'name': 'Project Code',
-        'value': '01',
-        'slug': 'project_id',
-      },
+      // Dummy data
+      final dummySettings = [
+        {
+          'name': 'Project Code',
+          'value': '10',
+          'slug': 'project_id',
+        },
+        {
+          'name': 'Block',
+          'value': '11',
+          'slug': 'block_id',
+        },
+        {
+          'name': 'Company',
+          'value': '1',
+          'slug': 'company_id',
+        },
+      ];
 
-      {
-        'name': 'Block',
-        'value': '1',
-        'slug': 'block_id',
-      },
-
-      // {
-      //   'name': 'Project 1',
-      //   'value': '33',
-      //   'slug': 'project1',
-      // },
-
-    ];
-
-    for (var setting in dummySettings) {
-      await db.insert('settings', setting);
+      for (var setting in dummySettings) {
+        await db.insert(
+          'settings',
+          setting,
+          conflictAlgorithm: ConflictAlgorithm.replace, // ✅ overwrite if exists
+        );
+      }
+    } catch (e) {
+      debugPrint("❌ Error seeding settings: $e");
     }
   }
 
@@ -77,12 +81,14 @@ class SettingSeeder extends StatelessWidget {
             await seedDummySettings();
 
             // Navigate to Settings List Page
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const SettingsListPage(),
-              ),
-            );
+            if (context.mounted) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SettingsListPage(),
+                ),
+              );
+            }
           },
           child: const Text('Seed Dummy Settings'),
         ),

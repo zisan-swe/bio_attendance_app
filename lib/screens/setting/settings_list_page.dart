@@ -36,22 +36,27 @@ class _SettingsListPageState extends State<SettingsListPage> {
       )
     ''');
 
-    final data = await db.query('settings');
+    final data = await db.query('settings', orderBy: "id DESC");
     setState(() {
       _settings = data;
     });
   }
 
-  Future<void> _editSetting(BuildContext parentContext, Map<String, dynamic> setting) async {
-    final nameController = TextEditingController(text: setting['name']);
-    final valueController = TextEditingController(text: setting['value']);
-    final slugController = TextEditingController(text: setting['slug']);
+  Future<void> _editOrAddSetting(
+      BuildContext parentContext, {
+        Map<String, dynamic>? setting,
+      }) async {
+    final nameController = TextEditingController(text: setting?['name'] ?? '');
+    final valueController = TextEditingController(text: setting?['value'] ?? '');
+    final slugController = TextEditingController(text: setting?['slug'] ?? '');
+
+    final isEdit = setting != null;
 
     await showDialog(
-      context: parentContext, // ✅ BuildContext ব্যবহার
+      context: parentContext,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text("Edit Setting"),
+          title: Text(isEdit ? "Edit Setting" : "Add Setting"),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -65,7 +70,12 @@ class _SettingsListPageState extends State<SettingsListPage> {
               ),
               TextField(
                 controller: slugController,
-                decoration: const InputDecoration(labelText: "Slug"),
+                readOnly: true,
+                decoration: const InputDecoration(
+                  labelText: "Slug",
+                  // Optionally add hint or change style
+                ),
+                style: TextStyle(color: Colors.grey), // Makes it look "disabled"
               ),
             ],
           ),
@@ -77,25 +87,44 @@ class _SettingsListPageState extends State<SettingsListPage> {
             ElevatedButton(
               onPressed: () async {
                 final db = await _openDB();
-                await db.update(
-                  'settings',
-                  {
-                    'name': nameController.text,
-                    'value': valueController.text,
-                    'slug': slugController.text,
-                  },
-                  where: 'id = ?',
-                  whereArgs: [setting['id']],
-                );
+
+                if (isEdit) {
+                  await db.update(
+                    'settings',
+                    {
+                      'name': nameController.text,
+                      'value': valueController.text,
+                      'slug': slugController.text,
+                    },
+                    where: 'id = ?',
+                    whereArgs: [setting!['id']],
+                  );
+                } else {
+                  await db.insert(
+                    'settings',
+                    {
+                      'name': nameController.text,
+                      'value': valueController.text,
+                      'slug': slugController.text,
+                    },
+                  );
+                }
+
                 Navigator.pop(dialogContext);
                 _loadSettings();
               },
-              child: const Text("Save"),
+              child: Text(isEdit ? "Save" : "Add"),
             ),
           ],
         );
       },
     );
+  }
+
+  Future<void> _deleteSetting(int id) async {
+    final db = await _openDB();
+    await db.delete('settings', where: 'id = ?', whereArgs: [id]);
+    _loadSettings();
   }
 
   @override
@@ -112,9 +141,12 @@ class _SettingsListPageState extends State<SettingsListPage> {
             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             child: ListTile(
               leading: CircleAvatar(
-                child: Text(item['id'].toString()),
+                backgroundColor: Colors.blueGrey,
+                child: Text(item['id'].toString(),
+                    style: const TextStyle(color: Colors.white)),
               ),
-              title: Text(item['name'] ?? ''),
+              title: Text(item['name'] ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -122,18 +154,28 @@ class _SettingsListPageState extends State<SettingsListPage> {
                   Text("Slug: ${item['slug']}"),
                 ],
               ),
-              trailing: IconButton(
-                icon: const Icon(Icons.edit, color: Colors.blue),
-                onPressed: () => _editSetting(context, item),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.blue),
+                    onPressed: () => _editOrAddSetting(context, setting: item),
+                  ),
+                  // IconButton(
+                  //   icon: const Icon(Icons.delete, color: Colors.red),
+                  //   onPressed: () => _deleteSetting(item['id']),
+                  // ),
+                ],
               ),
             ),
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _loadSettings,
-        child: const Icon(Icons.refresh),
-      ),
+  //Add Button
+      // floatingActionButton: FloatingActionButton(
+      //   onPressed: () => _editOrAddSetting(context),
+      //   child: const Icon(Icons.add),
+      // ),
     );
   }
 }

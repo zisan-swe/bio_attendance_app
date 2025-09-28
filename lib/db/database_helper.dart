@@ -83,6 +83,7 @@ class DatabaseHelper {
         location TEXT,
         status TEXT NOT NULL CHECK (status IN ('Regular', 'Early', 'Late')),
         remarks TEXT,
+        synced INTEGER,
         create_at TEXT NOT NULL,
         update_at TEXT NOT NULL
       )

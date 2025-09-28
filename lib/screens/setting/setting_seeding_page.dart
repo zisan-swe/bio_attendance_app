@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../db/setting_seeder.dart';
+import '../../db/attendance_seeder.dart'; // Make sure this is imported
 import 'settings_list_page.dart';
 
 class SettingSeedingPage extends StatelessWidget {
@@ -29,6 +30,7 @@ class SettingSeedingPage extends StatelessWidget {
                 );
               },
             ),
+
             const SizedBox(height: 20),
             ElevatedButton.icon(
               icon: const Icon(Icons.list),
@@ -38,6 +40,20 @@ class SettingSeedingPage extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (_) => const SettingsListPage(),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.fingerprint),
+              label: const Text("Seed Attendance"),
+              onPressed: () async {
+                await AttendanceSeeder.seedAttendance();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("✅ Dummy attendance seeded successfully!"),
                   ),
                 );
               },

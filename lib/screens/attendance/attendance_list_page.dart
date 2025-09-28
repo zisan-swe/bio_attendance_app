@@ -16,6 +16,7 @@ class AttendanceListPage extends StatefulWidget {
 
 class _AttendanceListPageState extends State<AttendanceListPage> {
   late Future<List<AttendanceModel>> _attendanceFuture;
+  late Future<Map<String, EmployeeModel?>> _employeeMapFuture;
   final DateFormat _dateFormat = DateFormat('MMM dd, yyyy');
   final DateFormat _timeFormat = DateFormat('hh:mm a');
 
@@ -23,18 +24,61 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
   void initState() {
     super.initState();
     _refreshData();
+    _attendanceFuture = Future.value([]);
+    _employeeMapFuture = Future.value({});
+    _refreshData(); // async call to populate real data
   }
 
+  // Future<void> _refreshData() async {
+  //   final attendanceProvider =
+  //   Provider.of<AttendanceProvider>(context, listen: false);
+  //   final employeeProvider =
+  //   Provider.of<EmployeeProvider>(context, listen: false);
+  //
+  //   setState(() {
+  //     // Load attendance
+  //     _attendanceFuture = attendanceProvider.getAllAttendance();
+  //
+  //     // Load all employees into a map by employeeNo for faster lookup
+  //     _employeeMapFuture = _attendanceFuture.then((attendanceList) async {
+  //       final Map<String, EmployeeModel?> employeeMap = {};
+  //       for (var attendance in attendanceList) {
+  //         if (!employeeMap.containsKey(attendance.employeeNo)) {
+  //           final employee = await employeeProvider
+  //               .getEmployeeByNumber(attendance.employeeNo.toString());
+  //           employeeMap[attendance.employeeNo] = employee;
+  //         }
+  //       }
+  //       return employeeMap;
+  //     });
+  //   });
+  // }
+
   Future<void> _refreshData() async {
+    final attendanceProvider =
+    Provider.of<AttendanceProvider>(context, listen: false);
+    final employeeProvider =
+    Provider.of<EmployeeProvider>(context, listen: false);
+
+    // Load attendance
+    final attendanceList = await attendanceProvider.getAllAttendance();
+
+    // Build employee map
+    final Map<String, EmployeeModel?> employeeMap = {};
+    for (var attendance in attendanceList) {
+      if (!employeeMap.containsKey(attendance.employeeNo)) {
+        final employee = await employeeProvider
+            .getEmployeeByNumber(attendance.employeeNo.toString());
+        employeeMap[attendance.employeeNo] = employee;
+      }
+    }
+
     setState(() {
-      _attendanceFuture = Provider.of<AttendanceProvider>(context, listen: false)
-          .getAllAttendance();
+      _attendanceFuture = Future.value(attendanceList);
+      _employeeMapFuture = Future.value(employeeMap);
     });
   }
 
-  Color _getStatusColor(int status) {
-    return status == 1 ? Colors.green : Colors.orange;
-  }
 
   IconData _getActionIcon(String action) {
     switch (action) {
@@ -51,56 +95,11 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
     }
   }
 
-  Widget _buildFingerprintStatus(EmployeeModel? employee) {
-    if (employee == null) return const SizedBox.shrink();
-
-    final fingerprints = <String>[
-      if (employee.fingerInfo1.isNotEmpty) 'Left Thumb',
-      if (employee.fingerInfo2.isNotEmpty) 'Left Index',
-      if (employee.fingerInfo3.isNotEmpty) 'Left Middle',
-      if (employee.fingerInfo4.isNotEmpty) 'Left Ring',
-      if (employee.fingerInfo5.isNotEmpty) 'Left Little',
-      if (employee.fingerInfo6.isNotEmpty) 'Right Thumb',
-      if (employee.fingerInfo7.isNotEmpty) 'Right Index',
-      if (employee.fingerInfo8.isNotEmpty) 'Right Middle',
-      if (employee.fingerInfo9.isNotEmpty) 'Right Ring',
-      if (employee.fingerInfo10.isNotEmpty) 'Right Little',
-    ];
-
-    if (fingerprints.isEmpty) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        // children: [
-        //   const Text(
-        //     'Registered Fingerprints:',
-        //     style: TextStyle(fontSize: 12, color: Colors.grey),
-        //   ),
-        //   Wrap(
-        //     spacing: 4,
-        //     runSpacing: 4,
-        //     children: fingerprints
-        //         .map((finger) => Chip(
-        //       label: Text(finger),
-        //       backgroundColor: Colors.blue[50],
-        //       labelStyle: const TextStyle(fontSize: 12),
-        //     ))
-        //         .toList(),
-        //   ),
-        // ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final employeeProvider = Provider.of<EmployeeProvider>(context, listen: false);
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Attendance List Records '),
+        title: const Text('Attendance List Records'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -123,58 +122,55 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
               );
             }
 
-            final attendanceList = snapshot.data ?? [];
+            final attendanceList = (snapshot.data ?? [])
+                .where((attendance) =>
+                ['Regular', 'Early', 'Late'].contains(attendance.status))
+                .toList();
 
             if (attendanceList.isEmpty) {
               return const Center(
-                child: Text('No attendance records found'),
+                child: Text('No regular attendance records found'),
               );
             }
 
-            return ListView.builder(
-              itemCount: attendanceList.length,
-              itemBuilder: (context, index) {
-                final attendance = attendanceList[index];
-                final employeeFuture = employeeProvider.getEmployeeByNumber(attendance.employeeNo.toString());
+            return FutureBuilder<Map<String, EmployeeModel?>>(
+              future: _employeeMapFuture,
+              builder: (context, employeeMapSnapshot) {
+                if (employeeMapSnapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-                return FutureBuilder<EmployeeModel?>(
-                  future: employeeFuture,
-                  builder: (context, employeeSnapshot) {
-                    if (employeeSnapshot.connectionState == ConnectionState.waiting) {
-                      return const Card(
-                        margin: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        child: ListTile(
-                          title: Text("Loading employee..."),
-                          subtitle: Text("Please wait"),
-                        ),
-                      );
-                    }
+                if (employeeMapSnapshot.hasError) {
+                  return Center(
+                    child: Text('Error loading employees: ${employeeMapSnapshot.error}'),
+                  );
+                }
 
-                    if (employeeSnapshot.hasError) {
-                      return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        child: ListTile(
-                          title: const Text("Error loading employee"),
-                          subtitle: Text(employeeSnapshot.error.toString()),
-                        ),
-                      );
-                    }
+                final employeeMap = employeeMapSnapshot.data ?? {};
 
-                    final employee = employeeSnapshot.data;
+                return ListView.builder(
+                  itemCount: attendanceList.length,
+                  itemBuilder: (context, index) {
+                    final attendance = attendanceList[index];
+                    final employee =
+                    employeeMap[attendance.employeeNo]; // Lookup
 
                     return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      margin:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       child: ListTile(
                         leading: CircleAvatar(
-                          // backgroundColor: _getStatusColor(attendance.status),
-                          backgroundColor: Colors.lightGreenAccent,
+                          backgroundColor: Colors.green,
                           child: Icon(
                             _getActionIcon(attendance.attendanceStatus),
                             color: Colors.white,
                           ),
                         ),
                         title: Text(
-                          'Employee #${attendance.employeeNo}',
+                          employee != null
+                              ? '${employee.name} (#${attendance.employeeNo})'
+                              : 'Employee #${attendance.employeeNo}',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         subtitle: Column(
@@ -184,17 +180,21 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
                               '${attendance.attendanceStatus} - ${_dateFormat.format(DateTime.parse(attendance.workingDate))}',
                             ),
                             if (attendance.inTime.isNotEmpty)
-                              Text('In Time: ${_timeFormat.format(DateTime.parse('2023-01-01 ${attendance.inTime}'))}'),
+                              Text(
+                                  'In Time: ${_timeFormat.format(DateTime.parse('2023-01-01 ${attendance.inTime}'))}'),
                             if (attendance.outTime.isNotEmpty)
-                              Text('Out Time: ${_timeFormat.format(DateTime.parse('2023-01-01 ${attendance.outTime}'))}'),
+                              Text(
+                                  'Out Time: ${_timeFormat.format(DateTime.parse('2023-01-01 ${attendance.outTime}'))}'),
                             if (attendance.fingerprint.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.fingerprint, size: 16, color: Colors.deepPurple),
+                                    const Icon(Icons.fingerprint,
+                                        size: 16, color: Colors.deepPurple),
                                     const SizedBox(width: 4),
-                                    Text('Used Fingerprint: ${attendance.fingerprint}'),
+                                    Text(
+                                        'Used Fingerprint: ${attendance.fingerprint}'),
                                   ],
                                 ),
                               ),
@@ -202,24 +202,24 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
                         ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
-                          // Step 1: Filter attendances for the same employee and date
-                          final sameDateAttendances = attendanceList.where((a) =>
+                          final sameDateAttendances = attendanceList
+                              .where((a) =>
                           a.employeeNo == attendance.employeeNo &&
-                              a.workingDate == attendance.workingDate
-                          ).toList();
+                              a.workingDate == attendance.workingDate)
+                              .toList();
 
-                          // Step 2: Sort by inTime or outTime (if inTime is empty)
                           sameDateAttendances.sort((a, b) {
-                            String timeA = a.inTime.isNotEmpty ? a.inTime : a.outTime;
-                            String timeB = b.inTime.isNotEmpty ? b.inTime : b.outTime;
+                            String timeA =
+                            a.inTime.isNotEmpty ? a.inTime : a.outTime;
+                            String timeB =
+                            b.inTime.isNotEmpty ? b.inTime : b.outTime;
 
                             DateTime dtA = DateTime.parse('2023-01-01 $timeA');
                             DateTime dtB = DateTime.parse('2023-01-01 $timeB');
 
-                            return dtA.compareTo(dtB); // ascending
+                            return dtA.compareTo(dtB);
                           });
 
-                          // Step 3: Navigate to the details page
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -230,13 +230,10 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
                             ),
                           );
                         },
-
-
                       ),
                     );
                   },
                 );
-
               },
             );
           },

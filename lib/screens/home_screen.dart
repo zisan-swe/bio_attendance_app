@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import 'attendance/attendance_seeding_page.dart';
 import 'login_screen.dart';
 import 'attendance/attendance_list_page.dart';
 import 'employee/labour_list.dart';
@@ -195,6 +196,17 @@ class HomeScreen extends StatelessWidget {
                       color: Colors.blueGrey,
                     ),
                   ),
+                  // SizedBox(
+                  //   width: 250,
+                  //   child: _buildButton(
+                  //     context: context,
+                  //     label: 'Attendance Seeder ',
+                  //     icon: Icons.settings,
+                  //     destination: AttendanceSeedingPage(),
+                  //     color: Colors.blueGrey,
+                  //   ),
+                  // ),
+
                   // SizedBox(
                   //   width: 250,
                   //   child: _buildButton(

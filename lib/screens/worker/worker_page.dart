@@ -25,36 +25,86 @@ class _WorkerPageState extends State<WorkerPage> {
     _loadEmployees('Labour');
   }
 
+  // Future<void> _loadEmployees(String employeeType) async {
+  //   setState(() => _isLoading = true);
+  //   try {
+  //     // 1️⃣ Fetch local SQLite employees
+  //     final localEmployees = await DatabaseHelper.instance.getAllEmployees(employeeType: employeeType);
+  //
+  //     // Build profile images map
+  //     Map<int, File> imageMap = {};
+  //     for (var emp in localEmployees) {
+  //       if (emp.imagePath.isNotEmpty) {
+  //         imageMap[emp.id!] = File(emp.imagePath);
+  //       }
+  //     }
+  //
+  //     // 2️⃣ Fetch API employees
+  //     List<EmployeeModel> apiEmployees = [];
+  //     try {
+  //       apiEmployees = await ApiService.fetchEmployees(code: "01", blockId: 1);
+  //     } catch (e) {
+  //       debugPrint("API fetch error: $e");
+  //     }
+  //
+  //     // 3️⃣ Merge local + API employees (optional: avoid duplicates by employeeNo or id)
+  //     final mergedEmployees = {
+  //       for (var e in [...localEmployees, ...apiEmployees])
+  //         e.employeeNo: e
+  //     }.values.toList();
+  //
+  //     setState(() {
+  //       employees = apiEmployees.isNotEmpty ? apiEmployees : localEmployees;
+  //       // employees = mergedEmployees;
+  //       _profileImages = imageMap;
+  //       _isLoading = false;
+  //     });
+  //   } catch (e) {
+  //     debugPrint("Error loading employees: $e");
+  //     setState(() => _isLoading = false);
+  //   }
+  // }
+
   Future<void> _loadEmployees(String employeeType) async {
     setState(() => _isLoading = true);
     try {
-      // 1️⃣ Fetch local SQLite employees
-      final localEmployees = await DatabaseHelper.instance.getAllEmployees(employeeType: employeeType);
+      // 🔹 Get settings dynamically
+      final projectSetting = await DatabaseHelper.instance.getSettingBySlug('project_id');
+      final blockSetting = await DatabaseHelper.instance.getSettingBySlug('block_id');
 
-      // Build profile images map
-      Map<int, File> imageMap = {};
-      for (var emp in localEmployees) {
-        if (emp.imagePath.isNotEmpty) {
-          imageMap[emp.id!] = File(emp.imagePath);
-        }
-      }
+      final String projectId = projectSetting?.value ?? "0"; // default fallback
+      final int blockId = int.tryParse(blockSetting?.value ?? "0") ?? 0;
 
-      // 2️⃣ Fetch API employees
+      print("⚙️ Using Project Code: $projectId, Block ID: $blockId");
+
+      // 🔹 Fetch API employees first
       List<EmployeeModel> apiEmployees = [];
       try {
-        apiEmployees = await ApiService.fetchEmployees(code: "01", blockId: 1);
+        apiEmployees = await ApiService.fetchEmployees(code: projectId, blockId: blockId);
+        print("🌐 API Employees Loaded: ${apiEmployees.length}");
       } catch (e) {
         debugPrint("API fetch error: $e");
       }
 
-      // 3️⃣ Merge local + API employees (optional: avoid duplicates by employeeNo or id)
-      final mergedEmployees = {
-        for (var e in [...localEmployees, ...apiEmployees])
-          e.employeeNo: e
-      }.values.toList();
+      // 🔹 If API data found, use it; otherwise fall back to local DB
+      List<EmployeeModel> employeesToShow = [];
+      if (apiEmployees.isNotEmpty) {
+        employeesToShow = apiEmployees;
+      } else {
+        employeesToShow =
+        await DatabaseHelper.instance.getAllEmployees(employeeType: employeeType);
+      }
+
+      // Build profile images map (only for local employees)
+      Map<int, File> imageMap = {};
+      for (var emp in employeesToShow) {
+        if (emp.id != null && emp.imagePath.isNotEmpty) {
+          imageMap[emp.id!] = File(emp.imagePath);
+        }
+      }
 
       setState(() {
-        employees = mergedEmployees;
+        employees = employeesToShow;
         _profileImages = imageMap;
         _isLoading = false;
       });
@@ -141,7 +191,7 @@ class _WorkerPageState extends State<WorkerPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : employees.isEmpty
-          ? const Center(child: Text('No Workers added yet.'))
+          ? const Center(child: Text('⚠ No employees found!'))
           : ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: employees.length,
@@ -202,21 +252,21 @@ class _WorkerPageState extends State<WorkerPage> {
                       }
                     },
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _confirmDeleteEmployee(emp.id!),
-                  ),
+                  // IconButton(
+                  //   icon: const Icon(Icons.delete, color: Colors.red),
+                  //   onPressed: () => _confirmDeleteEmployee(emp.id!),
+                  // ),
                 ],
               ),
             ),
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _navigateToCreate(),
-        icon: const Icon(Icons.add),
-        label: const Text('Add Worker'),
-      ),
+      // floatingActionButton: FloatingActionButton.extended(
+      //   onPressed: () => _navigateToCreate(),
+      //   icon: const Icon(Icons.add),
+      //   label: const Text('Add Worker'),
+      // ),
     );
   }
 }

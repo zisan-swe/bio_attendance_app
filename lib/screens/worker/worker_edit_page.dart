@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../models/employee_model.dart';
 import '../../providers/employee_provider.dart';
+import '../../services/api_service.dart';
+import '../../services/fingerprint_service.dart'; // ✅ Add this
 
 class WorkerEditPage extends StatefulWidget {
   final EmployeeModel employee;
@@ -17,6 +19,8 @@ class WorkerEditPage extends StatefulWidget {
 
 class _WorkerEditPageState extends State<WorkerEditPage> {
   final _formKey = GlobalKey<FormState>();
+  final service = FingerprintService(); // ✅ এখানে initialize
+  late EmployeeModel employee; // local copy
 
   late TextEditingController nameController;
   late TextEditingController emailController;
@@ -67,7 +71,31 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
       emp.fingerInfo6, emp.fingerInfo7, emp.fingerInfo8, emp.fingerInfo9, emp.fingerInfo10,
     ];
 
-    fingerScanStatus.updateAll((key, _) => fingerValues.removeAt(0).isNotEmpty);
+    int i = 0;
+    fingerScanStatus.updateAll((key, _) => i < fingerValues.length && fingerValues[i++].isNotEmpty);
+  }
+
+  /// ✅ নতুন method - আসল ফিঙ্গার স্ক্যান
+  Future<void> _scanFinger(String fingerName) async {
+    try {
+      final updatedEmp = await service.scanAndUpdateFinger(
+        employee: widget.employee,
+        fingerName: fingerName,
+      );
+
+      setState(() {
+        employee = updatedEmp; // ✅ local copy update
+        fingerScanStatus[fingerName] = true; // ✅ সফল হলে UI তে সবুজ দেখাবে
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$fingerName scanned successfully ✅')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error scanning $fingerName: $e')),
+      );
+    }
   }
 
   Future<void> _pickImage() async {
@@ -114,51 +142,66 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
     }
   }
 
-  void _updateEmployee() async {
-    if (_formKey.currentState!.validate()) {
-      final provider = Provider.of<EmployeeProvider>(context, listen: false);
-      final emp = widget.employee;
+  Future<void> _updateEmployee() async {
+    if (!_formKey.currentState!.validate()) return;
 
-      final dailyWages = double.tryParse(dailyWagesController.text.trim());
+    final provider = Provider.of<EmployeeProvider>(context, listen: false);
+    final dailyWages = double.tryParse(dailyWagesController.text.trim());
 
-      if (dailyWages == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid Daily Wages')),
-        );
-        return;
-      }
-
-      final updated = emp.copyWith(
-        name: nameController.text,
-        email: emailController.text,
-        employeeNo: codeController.text,
-        nid: nidController.text,
-        dailyWages: dailyWages,
-        phone: phoneController.text,
-        fatherName: fatherController.text,
-        motherName: motherController.text,
-        dob: dobController.text,
-        joiningDate: joiningController.text,
-        fingerInfo1: fingerScanStatus['Left Thumb']! ? '1' : '',
-        fingerInfo2: fingerScanStatus['Left Index']! ? '1' : '',
-        fingerInfo3: fingerScanStatus['Left Middle']! ? '1' : '',
-        fingerInfo4: fingerScanStatus['Left Ring']! ? '1' : '',
-        fingerInfo5: fingerScanStatus['Left Little']! ? '1' : '',
-        fingerInfo6: fingerScanStatus['Right Thumb']! ? '1' : '',
-        fingerInfo7: fingerScanStatus['Right Index']! ? '1' : '',
-        fingerInfo8: fingerScanStatus['Right Middle']! ? '1' : '',
-        fingerInfo9: fingerScanStatus['Right Ring']! ? '1' : '',
-        fingerInfo10: fingerScanStatus['Right Little']! ? '1' : '',
-        imagePath: _profileImage?.path ?? '',
-      );
-
-      await provider.updateEmployee(updated);
+    if (dailyWages == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Worker Updated Successfully')),
+        const SnackBar(content: Text('❌ Invalid Daily Wages')),
+      );
+      return;
+    }
+
+    final updated = widget.employee.copyWith(
+      name: nameController.text,
+      email: emailController.text,
+      employeeNo: codeController.text,
+      nid: nidController.text,
+      dailyWages: dailyWages,
+      phone: phoneController.text,
+      fatherName: fatherController.text,
+      motherName: motherController.text,
+      dob: dobController.text,
+      joiningDate: joiningController.text,
+      fingerInfo1: fingerScanStatus['Left Thumb']! ? '2' : '',
+      fingerInfo2: fingerScanStatus['Left Index']! ? '2' : '',
+      fingerInfo3: fingerScanStatus['Left Middle']! ? '1' : '',
+      fingerInfo4: fingerScanStatus['Left Ring']! ? '1' : '',
+      fingerInfo5: fingerScanStatus['Left Little']! ? '1' : '',
+      fingerInfo6: fingerScanStatus['Right Thumb']! ? '1' : '',
+      fingerInfo7: fingerScanStatus['Right Index']! ? '1' : '',
+      fingerInfo8: fingerScanStatus['Right Middle']! ? '1' : '',
+      fingerInfo9: fingerScanStatus['Right Ring']! ? '1' : '',
+      fingerInfo10: fingerScanStatus['Right Little']! ? '1' : '',
+      imagePath: _profileImage?.path ?? '',
+    );
+
+    // Update locally via provider
+    await provider.updateEmployee(updated);
+
+    // Update on server and fetch latest finger info
+    final syncedEmployee = await ApiService.fetchAndUpdateFingers(
+      employeeNo: updated.employeeNo,
+      existingEmployee: updated,
+      provider: provider,
+    );
+
+    if (syncedEmployee != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Worker & Finger Data Updated Successfully')),
       );
       Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('⚠️ Worker updated locally, but finger sync failed')),
+      );
     }
   }
+
+
 
   Widget _buildField(String label, TextEditingController controller, IconData icon, {bool isRequired = true}) {
     return TextFormField(
@@ -172,13 +215,8 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
     );
   }
 
-  Widget _buildFieldPhone(
-      String label,
-      TextEditingController controller,
-      IconData icon, {
-        bool isRequired = true,
-        bool isPhone = false,
-      }) {
+  Widget _buildFieldPhone(String label, TextEditingController controller, IconData icon,
+      {bool isRequired = true, bool isPhone = false}) {
     return TextFormField(
       controller: controller,
       keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
@@ -187,15 +225,11 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
         labelText: label,
         prefixIcon: Icon(icon),
         border: const OutlineInputBorder(),
-        counterText: '', // optionally hide the character counter
+        counterText: '',
       ),
       validator: (value) {
-        if (isRequired && (value == null || value.trim().isEmpty)) {
-          return 'Enter $label';
-        }
-        if (isPhone && value != null && !RegExp(r'^\d{11}$').hasMatch(value)) {
-          return 'Phone number must be exactly 11 digits';
-        }
+        if (isRequired && (value == null || value.trim().isEmpty)) return 'Enter $label';
+        if (isPhone && value != null && !RegExp(r'^\d{11}$').hasMatch(value)) return 'Phone number must be exactly 11 digits';
         return null;
       },
     );
@@ -218,7 +252,8 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
   Widget _buildFingerButton(String label) {
     final isScanned = fingerScanStatus[label] ?? false;
     return ElevatedButton(
-      onPressed: () => setState(() => fingerScanStatus[label] = !isScanned),
+      onPressed: () => _scanFinger(label), // ✅ এখানে toggle না করে scan করবে
+      // onPressed: () => setState(() => fingerScanStatus[label] = !isScanned),
       style: ElevatedButton.styleFrom(
         backgroundColor: isScanned ? Colors.green : Colors.grey[300],
         foregroundColor: isScanned ? Colors.white : Colors.black,
@@ -265,12 +300,8 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
 
   @override
   Widget build(BuildContext context) {
-    final wide = MediaQuery.of(context).size.width > 600;
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Worker'),
-        backgroundColor: Colors.blueGrey,
-      ),
+      appBar: AppBar(title: const Text('Edit Worker'), backgroundColor: Colors.blueGrey),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -297,7 +328,7 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
               const SizedBox(height: 12),
               _buildField('Worker Daily Wages', dailyWagesController, Icons.badge),
               const SizedBox(height: 12),
-              _buildFieldPhone('Phone', phoneController, Icons.phone,isPhone: true),
+              _buildFieldPhone('Phone', phoneController, Icons.phone, isPhone: true),
               const SizedBox(height: 12),
               _buildField('Father\'s Name', fatherController, Icons.person),
               const SizedBox(height: 12),

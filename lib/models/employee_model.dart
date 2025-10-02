@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class EmployeeModel {
   final int? id;
   final String name;
@@ -83,42 +85,54 @@ class EmployeeModel {
 
   /// --- From API Response ---
   factory EmployeeModel.fromJson(Map<String, dynamic> json) {
-    // Handle daily_wages as JSON object
+    // Handle daily_wages as JSON string/object
     double latestDailyWage = 0.0;
-    if (json['daily_wages'] != null && json['daily_wages'] is Map) {
-      Map<String, dynamic> wages = Map<String, dynamic>.from(json['daily_wages']);
-      if (wages.isNotEmpty) {
-        // Get latest date
-        final latestDate = wages.keys.reduce((a, b) => a.compareTo(b) > 0 ? a : b);
-        latestDailyWage = (wages[latestDate] as num).toDouble();
+    try {
+      if (json['daily_wages'] != null) {
+        Map<String, dynamic> wages;
+        if (json['daily_wages'] is String) {
+          wages = jsonDecode(json['daily_wages']);
+        } else if (json['daily_wages'] is Map) {
+          wages = Map<String, dynamic>.from(json['daily_wages']);
+        } else {
+          wages = {};
+        }
+
+        if (wages.isNotEmpty) {
+          final latestDate =
+              wages.keys.reduce((a, b) => a.compareTo(b) > 0 ? a : b);
+          latestDailyWage = (wages[latestDate] as num).toDouble();
+        }
       }
+    } catch (_) {
+      latestDailyWage = 0.0;
     }
 
     return EmployeeModel(
-      id: json['id'] as int?,
-      name: json['name'] ?? '',
-      email: json['email'] ?? '',
-      employeeNo: json['employee_no'] ?? '',
-      nid: json['nid'] ?? '',
-      dailyWages: latestDailyWage, // Use latest
-      phone: json['mobile'] ?? '',
-      fatherName: json['father_name'] ?? '',
-      motherName: json['mother_name'] ?? '',
-      dob: json['dob'] ?? '',
-      joiningDate: json['joining_date'] ?? '',
-      employeeType: json['employee_type'] ?? 'Labour',
-      companyId: json['company_id'] as int? ?? 1,
-      fingerInfo1: json['finger_info1'] ?? '',
-      fingerInfo2: json['finger_info2'] ?? '',
-      fingerInfo3: json['finger_info3'] ?? '',
-      fingerInfo4: json['finger_info4'] ?? '',
-      fingerInfo5: json['finger_info5'] ?? '',
-      fingerInfo6: json['finger_info6'] ?? '',
-      fingerInfo7: json['finger_info7'] ?? '',
-      fingerInfo8: json['finger_info8'] ?? '',
-      fingerInfo9: json['finger_info9'] ?? '',
-      fingerInfo10: json['finger_info10'] ?? '',
-      imagePath: json['image_path'] ?? '',
+      id: int.tryParse(json['id'].toString()),
+      name: json['name']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      employeeNo: json['employee_no']?.toString() ?? '',
+      nid: json['nid']?.toString() ?? '',
+      dailyWages: latestDailyWage,
+      phone: json['mobile']?.toString() ?? '',
+      fatherName: json['father_name']?.toString() ?? '',
+      motherName: json['mother_name']?.toString() ?? '',
+      dob: json['dob']?.toString() ?? '',
+      joiningDate: json['joining_date']?.toString() ?? '',
+      employeeType: json['employee_type_id']?.toString() ?? 'Labour',
+      companyId: int.tryParse(json['company_id']?.toString() ?? '1') ?? 1,
+      fingerInfo1: json['finger_info1']?.toString() ?? '',
+      fingerInfo2: json['finger_info2']?.toString() ?? '',
+      fingerInfo3: json['finger_info3']?.toString() ?? '',
+      fingerInfo4: json['finger_info4']?.toString() ?? '',
+      fingerInfo5: json['finger_info5']?.toString() ?? '',
+      fingerInfo6: json['finger_info6']?.toString() ?? '',
+      fingerInfo7: json['finger_info7']?.toString() ?? '',
+      fingerInfo8: json['finger_info8']?.toString() ?? '',
+      fingerInfo9: json['finger_info9']?.toString() ?? '',
+      fingerInfo10: json['finger_info10']?.toString() ?? '',
+      imagePath: json['image_path']?.toString() ?? '',
     );
   }
 

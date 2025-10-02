@@ -49,7 +49,7 @@ class SettingSeeder extends StatelessWidget {
         },
         {
           'name': 'Block',
-          'value': '11',
+          'value': '2',
           'slug': 'block_id',
         },
         {

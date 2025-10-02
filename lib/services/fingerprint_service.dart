@@ -1,6 +1,8 @@
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:developer' as dev; // For dev.log
+import 'dart:developer' as dev;
+
+import '../models/employee_model.dart'; // For dev.log
 
 class FingerprintException implements Exception {
   final String code;
@@ -109,4 +111,39 @@ class FingerprintService {
       rethrow;
     }
   }
+
+
+/// 🔹 Scan a fingerprint and update the correct fingerInfo field in EmployeeModel
+Future<EmployeeModel> scanAndUpdateFinger({
+  required EmployeeModel employee,
+  required String fingerName, // Example: 'Left Thumb', 'Right Index'
+}) async {
+  final template = await scanFingerprint();
+
+  // Map finger name → field
+  switch (fingerName) {
+    case 'Left Thumb':
+      return employee.copyWith(fingerInfo1: template);
+    case 'Right Thumb':
+      return employee.copyWith(fingerInfo2: template);
+    case 'Left Index':
+      return employee.copyWith(fingerInfo3: template);
+    case 'Right Index':
+      return employee.copyWith(fingerInfo4: template);
+    case 'Left Middle':
+      return employee.copyWith(fingerInfo5: template);
+    case 'Right Middle':
+      return employee.copyWith(fingerInfo6: template);
+    case 'Left Ring':
+      return employee.copyWith(fingerInfo7: template);
+    case 'Right Ring':
+      return employee.copyWith(fingerInfo8: template);
+    case 'Left Little':
+      return employee.copyWith(fingerInfo9: template);
+    case 'Right Little':
+      return employee.copyWith(fingerInfo10: template);
+    default:
+      throw FingerprintException('INVALID_FINGER', 'Unknown finger name: $fingerName');
+  }
+}
 }

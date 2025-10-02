@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import '../models/employee_model.dart';
 import '../db/database_helper.dart';
-import '../../services/fingerprint_service.dart'; // Import FingerprintService
+import '../../services/fingerprint_service.dart';
+import '../services/api_service.dart';
 
 class EmployeeProvider with ChangeNotifier {
   List<EmployeeModel> _employees = [];
 
   List<EmployeeModel> get employees => _employees;
 
-  // 🔹 Load employees by type
+  // 🔹 Load employees by type (Labour, Wages, Staff)
   Future<void> fetchEmployees(String employeeType) async {
     try {
       final db = await DatabaseHelper.instance.database;
@@ -16,13 +17,25 @@ class EmployeeProvider with ChangeNotifier {
       final result = await db.query(
         'employee',
         where: 'employee_type = ?',
-        whereArgs: [employeeType], // 👈 e.g. "Labour", "Wages", "Staff"
+        whereArgs: [employeeType],
       );
 
       _employees = result.map((map) => EmployeeModel.fromMap(map)).toList();
       notifyListeners();
     } catch (e) {
-      debugPrint('Error fetching employees: $e');
+      debugPrint('Error fetching employees by type: $e');
+    }
+  }
+
+  // 🔹 Load ALL employees (no filter)
+  Future<void> fetchAllEmployees() async {
+    try {
+      final db = await DatabaseHelper.instance.database;
+      final result = await db.query('employee'); // fetch all rows
+      _employees = result.map((map) => EmployeeModel.fromMap(map)).toList();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error fetching all employees: $e');
     }
   }
 
@@ -41,7 +54,7 @@ class EmployeeProvider with ChangeNotifier {
     try {
       if (employee.id != null) {
         await DatabaseHelper.instance.updateEmployee(employee);
-        await fetchEmployees(employee.employeeType);
+        await fetchEmployees(employee.employeeType); // Reload from DB
       }
     } catch (e) {
       debugPrint('Error updating employee: $e');
@@ -138,6 +151,30 @@ class EmployeeProvider with ChangeNotifier {
     }
     return fingerprints;
   }
+
+  // 🔹 Update fingerprints from API
+  Future<void> updateFingerData() async {
+    // Loop through all local employees
+    for (int i = 0; i < _employees.length; i++) {
+      final emp = _employees[i];
+
+      // Fetch finger data for this employee
+      final updatedEmployee = await ApiService.fetchAndUpdateFingers(
+        employeeNo: emp.employeeNo,
+        existingEmployee: emp,
+        provider: this,
+      );
+
+      // Update local list if fetched successfully
+      if (updatedEmployee != null) {
+        _employees[i] = updatedEmployee;
+      }
+    }
+
+    // Notify listeners after all updates
+    notifyListeners();
+  }
+
 
   // 🔹 Helper to get employee by ID from local list
   EmployeeModel? _getEmployeeFromLocalList(int? id) {

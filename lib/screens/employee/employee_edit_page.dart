@@ -6,19 +6,24 @@ import 'package:provider/provider.dart';
 import '../../models/employee_model.dart';
 import '../../providers/employee_provider.dart';
 import '../../services/fingerprint_service.dart';
+import '../../services/api_service.dart';
+import '../../db/database_helper.dart';
 
 class EmployeeEditPage extends StatefulWidget {
   final EmployeeModel employee;
+
   const EmployeeEditPage({Key? key, required this.employee}) : super(key: key);
 
   @override
-  State<EmployeeEditPage> createState() => _EmployeeEditPageState();
+  _EmployeeEditPageState createState() => _EmployeeEditPageState();
 }
 
 class _EmployeeEditPageState extends State<EmployeeEditPage> {
   final _formKey = GlobalKey<FormState>();
+  final picker = ImagePicker();
   final _fingerSvc = FingerprintService();
 
+  // Controllers
   late TextEditingController nameController;
   late TextEditingController emailController;
   late TextEditingController codeController;
@@ -36,19 +41,24 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
   @override
   void initState() {
     super.initState();
+
     final emp = widget.employee;
 
     nameController = TextEditingController(text: emp.name);
     emailController = TextEditingController(text: emp.email);
     codeController = TextEditingController(text: emp.employeeNo);
     nidController = TextEditingController(text: emp.nid);
-    dailyWagesController = TextEditingController(text: emp.dailyWages.toStringAsFixed(2));
+    dailyWagesController =
+        TextEditingController(text: emp.dailyWages.toString());
     phoneController = TextEditingController(text: emp.phone);
     fatherController = TextEditingController(text: emp.fatherName);
     motherController = TextEditingController(text: emp.motherName);
     dobController = TextEditingController(text: emp.dob);
     joiningController = TextEditingController(text: emp.joiningDate);
-    _profileImage = emp.imagePath.isNotEmpty ? File(emp.imagePath) : null;
+
+    if (emp.imagePath.isNotEmpty) {
+      _profileImage = File(emp.imagePath);
+    }
 
     fingerTemplates = {
       'Left Thumb': emp.fingerInfo1,
@@ -65,99 +75,122 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
   }
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
     showModalBottomSheet(
       context: context,
-      builder: (_) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Take Photo'),
-              onTap: () async {
-                Navigator.pop(context);
-                final picked = await picker.pickImage(source: ImageSource.camera);
-                if (picked != null) setState(() => _profileImage = File(picked.path));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Choose from Gallery'),
-              onTap: () async {
-                Navigator.pop(context);
-                final picked = await picker.pickImage(source: ImageSource.gallery);
-                if (picked != null) setState(() => _profileImage = File(picked.path));
-              },
-            ),
-          ],
-        ),
-      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('Take Photo'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final pickedFile =
+                  await picker.pickImage(source: ImageSource.camera);
+                  if (pickedFile != null) {
+                    setState(() => _profileImage = File(pickedFile.path));
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from Gallery'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final pickedFile =
+                  await picker.pickImage(source: ImageSource.gallery);
+                  if (pickedFile != null) {
+                    setState(() => _profileImage = File(pickedFile.path));
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Future<void> _selectDate(BuildContext context, TextEditingController controller) async {
-    final picked = await showDatePicker(
+  Future<void> _selectDate(
+      BuildContext context, TextEditingController controller) async {
+    final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.tryParse(controller.text) ?? DateTime(2000),
+      initialDate: DateTime.tryParse(controller.text) ?? DateTime(2025),
       firstDate: DateTime(1950),
       lastDate: DateTime(2100),
     );
-    if (picked != null) controller.text = DateFormat('yyyy-MM-dd').format(picked);
+    if (picked != null) {
+      setState(() => controller.text = DateFormat('yyyy-MM-dd').format(picked));
+    }
   }
 
   Future<void> _scanFinger(String fingerName) async {
     try {
       final tpl = await _fingerSvc.scanFingerprint();
       setState(() => fingerTemplates[fingerName] = tpl);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("✅ $fingerName captured")));
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("⚠️ $fingerName failed: $e")));
+    }
+  }
+
+  Future<void> _updateEmployee() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final provider = Provider.of<EmployeeProvider>(context, listen: false);
+
+    final dailyWages = double.tryParse(dailyWagesController.text.trim()) ?? 0.0;
+
+    final employee = EmployeeModel(
+      id: widget.employee.id,
+      name: nameController.text.trim(),
+      email: emailController.text.trim(),
+      employeeNo: codeController.text.trim(),
+      nid: nidController.text.trim(),
+      dailyWages: dailyWages,
+      phone: phoneController.text.trim(),
+      fatherName: fatherController.text.trim(),
+      motherName: motherController.text.trim(),
+      dob: dobController.text.trim(),
+      joiningDate: joiningController.text.trim(),
+      employeeType: widget.employee.employeeType,
+      companyId: widget.employee.companyId,
+      fingerInfo1: fingerTemplates['Left Thumb'] ?? '',
+      fingerInfo2: fingerTemplates['Left Index'] ?? '',
+      fingerInfo3: fingerTemplates['Left Middle'] ?? '',
+      fingerInfo4: fingerTemplates['Left Ring'] ?? '',
+      fingerInfo5: fingerTemplates['Left Little'] ?? '',
+      fingerInfo6: fingerTemplates['Right Thumb'] ?? '',
+      fingerInfo7: fingerTemplates['Right Index'] ?? '',
+      fingerInfo8: fingerTemplates['Right Middle'] ?? '',
+      fingerInfo9: fingerTemplates['Right Ring'] ?? '',
+      fingerInfo10: fingerTemplates['Right Little'] ?? '',
+      imagePath: _profileImage?.path ?? '',
+    );
+
+    await provider.updateEmployee(employee);
+
+    // 🔹 Send to API
+    try {
+      await ApiService.createLabour(employee.toJson());
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("✅ $fingerName scanned successfully")),
+        const SnackBar(content: Text('✅ Employee updated & uploaded to API')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ $fingerName scan failed: $e")),
+        SnackBar(content: Text('⚠️ Updated locally but API failed: $e')),
       );
     }
+
+    Navigator.pop(context, true);
   }
 
-  void _updateEmployee() async {
-    if (_formKey.currentState!.validate()) {
-      final provider = Provider.of<EmployeeProvider>(context, listen: false);
-      final emp = widget.employee;
-      final dailyWages = double.tryParse(dailyWagesController.text.trim()) ?? 0.0;
-
-      final updated = emp.copyWith(
-        name: nameController.text,
-        email: emailController.text,
-        employeeNo: codeController.text,
-        nid: nidController.text,
-        dailyWages: dailyWages,
-        phone: phoneController.text,
-        fatherName: fatherController.text,
-        motherName: motherController.text,
-        dob: dobController.text,
-        joiningDate: joiningController.text,
-        fingerInfo1: fingerTemplates['Left Thumb'] ?? '',
-        fingerInfo2: fingerTemplates['Left Index'] ?? '',
-        fingerInfo3: fingerTemplates['Left Middle'] ?? '',
-        fingerInfo4: fingerTemplates['Left Ring'] ?? '',
-        fingerInfo5: fingerTemplates['Left Little'] ?? '',
-        fingerInfo6: fingerTemplates['Right Thumb'] ?? '',
-        fingerInfo7: fingerTemplates['Right Index'] ?? '',
-        fingerInfo8: fingerTemplates['Right Middle'] ?? '',
-        fingerInfo9: fingerTemplates['Right Ring'] ?? '',
-        fingerInfo10: fingerTemplates['Right Little'] ?? '',
-        imagePath: _profileImage?.path ?? '',
-      );
-
-      await provider.updateEmployee(updated);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Employee Updated Successfully')),
-      );
-      Navigator.pop(context, true);
-    }
-  }
-
-  Widget _buildField(String label, TextEditingController controller, IconData icon, {bool isRequired = true}) {
+  Widget _buildInputField(String label, TextEditingController controller,
+      IconData icon,
+      {bool isRequired = true}) {
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(
@@ -165,20 +198,9 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
         prefixIcon: Icon(icon),
         border: const OutlineInputBorder(),
       ),
-      validator: isRequired ? (val) => val == null || val.trim().isEmpty ? 'Enter $label' : null : null,
-    );
-  }
-
-  Widget _buildFieldPhone(String label, TextEditingController controller, IconData icon) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: TextInputType.phone,
-      maxLength: 11,
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon), border: const OutlineInputBorder(), counterText: ''),
-      validator: (value) {
-        if (value == null || value.trim().isEmpty) return 'Enter $label';
-        if (!RegExp(r'^\d{11}$').hasMatch(value)) return 'Phone number must be 11 digits';
-        return null;
+      validator: (val) {
+        if (!isRequired) return null;
+        return val == null || val.trim().isEmpty ? 'Enter $label' : null;
       },
     );
   }
@@ -190,53 +212,79 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
       onTap: () => _selectDate(context, controller),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: const Icon(Icons.calendar_month),
+        prefixIcon: const Icon(Icons.calendar_today),
         border: const OutlineInputBorder(),
       ),
-      validator: (val) => val == null || val.trim().isEmpty ? 'Select $label' : null,
+      validator: (val) =>
+      val == null || val.trim().isEmpty ? 'Select $label' : null,
     );
   }
 
-  Widget _buildFingerButton(String fingerName) {
+  Widget _buildFinger(String fingerName) {
     final isScanned = (fingerTemplates[fingerName]?.isNotEmpty ?? false);
-    return ElevatedButton(
-      onPressed: () => _scanFinger(fingerName),
-      style: ElevatedButton.styleFrom(
-        minimumSize: const Size(130, 40),
-        backgroundColor: isScanned ? Colors.green : Colors.grey[300],
-        foregroundColor: isScanned ? Colors.white : Colors.black,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: ElevatedButton(
+        onPressed: () => _scanFinger(fingerName),
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size(140, 40),
+          backgroundColor: isScanned ? Colors.green : Colors.grey[300],
+          foregroundColor: isScanned ? Colors.white : Colors.black,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(isScanned ? Icons.fingerprint : Icons.fingerprint_outlined,
+                size: 18),
+            const SizedBox(width: 6),
+            Text(fingerName.split(' ').last),
+          ],
+        ),
       ),
-      child: Text(fingerName.split(' ').last),
     );
   }
 
-  Widget _buildBiometricSection() {
+  Widget _buildFingerScanSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Biometric Fingers', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 10),
+        const Text('Biometric Finger Scan',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 20),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Column(
               children: [
-                const Text('Left Hand'),
-                _buildFingerButton('Left Thumb'),
-                _buildFingerButton('Left Index'),
-                _buildFingerButton('Left Middle'),
-                _buildFingerButton('Left Ring'),
-                _buildFingerButton('Left Little'),
+                const Text('Left Hand',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                _buildFinger('Left Thumb'),
+                _buildFinger('Left Index'),
+                _buildFinger('Left Middle'),
+                _buildFinger('Left Ring'),
+                _buildFinger('Left Little'),
+              ],
+            ),
+            Column(
+              children: const [
+                SizedBox(height: 30),
+                Icon(Icons.pan_tool_alt_rounded, size: 60, color: Colors.grey),
+                SizedBox(height: 10),
+                Icon(Icons.pan_tool_alt_rounded, size: 60, color: Colors.grey),
               ],
             ),
             Column(
               children: [
-                const Text('Right Hand'),
-                _buildFingerButton('Right Thumb'),
-                _buildFingerButton('Right Index'),
-                _buildFingerButton('Right Middle'),
-                _buildFingerButton('Right Ring'),
-                _buildFingerButton('Right Little'),
+                const Text('Right Hand',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                _buildFinger('Right Thumb'),
+                _buildFinger('Right Index'),
+                _buildFinger('Right Middle'),
+                _buildFinger('Right Ring'),
+                _buildFinger('Right Little'),
               ],
             ),
           ],
@@ -247,55 +295,114 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWide = screenWidth > 600;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Employee'), backgroundColor: Colors.blueGrey),
+      appBar: AppBar(
+        title: const Text('Edit Employee'),
+        backgroundColor: Colors.blueGrey,
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.symmetric(
+          horizontal: isWide ? screenWidth * 0.1 : 16,
+          vertical: 20,
+        ),
         child: Form(
           key: _formKey,
-          child: Column(
-            children: [
-              GestureDetector(
-                onTap: _pickImage,
-                child: CircleAvatar(
-                  radius: 50,
-                  backgroundImage: _profileImage != null ? FileImage(_profileImage!) : null,
-                  backgroundColor: Colors.grey[300],
-                  child: _profileImage == null ? const Icon(Icons.camera_alt) : null,
-                ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1000),
+              child: Column(
+                children: [
+                  GestureDetector(
+                    onTap: _pickImage,
+                    child: CircleAvatar(
+                      radius: 50,
+                      backgroundColor: Colors.grey[300],
+                      backgroundImage:
+                      _profileImage != null ? FileImage(_profileImage!) : null,
+                      child: _profileImage == null
+                          ? const Icon(Icons.camera_alt,
+                          size: 40, color: Colors.white70)
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Tap to upload profile image'),
+                  const SizedBox(height: 30),
+                  Wrap(
+                    runSpacing: 20,
+                    spacing: 20,
+                    children: [
+                      SizedBox(
+                        width: isWide ? 400 : double.infinity,
+                        child: _buildInputField(
+                            'Employee Name', nameController, Icons.person),
+                      ),
+                      SizedBox(
+                        width: isWide ? 400 : double.infinity,
+                        child: _buildInputField(
+                            'Employee Email', emailController, Icons.email,
+                            isRequired: false),
+                      ),
+                      SizedBox(
+                        width: isWide ? 400 : double.infinity,
+                        child: _buildInputField(
+                            'Employee ID', codeController, Icons.code),
+                      ),
+                      SizedBox(
+                        width: isWide ? 400 : double.infinity,
+                        child: _buildInputField(
+                            'Employee NID', nidController, Icons.badge),
+                      ),
+                      SizedBox(
+                        width: isWide ? 400 : double.infinity,
+                        child: _buildInputField(
+                            'Employee Daily Wages', dailyWagesController, Icons.attach_money),
+                      ),
+                      SizedBox(
+                        width: isWide ? 400 : double.infinity,
+                        child: _buildInputField(
+                            'Phone Number', phoneController, Icons.phone),
+                      ),
+                      SizedBox(
+                        width: isWide ? 400 : double.infinity,
+                        child: _buildInputField(
+                            'Father\'s Name', fatherController, Icons.man),
+                      ),
+                      SizedBox(
+                        width: isWide ? 400 : double.infinity,
+                        child: _buildInputField(
+                            'Mother\'s Name', motherController, Icons.woman),
+                      ),
+                      SizedBox(
+                        width: isWide ? 400 : double.infinity,
+                        child: _buildDateField('Date of Birth', dobController),
+                      ),
+                      SizedBox(
+                        width: isWide ? 400 : double.infinity,
+                        child: _buildDateField('Joining Date', joiningController),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+                  _buildFingerScanSection(),
+                  const SizedBox(height: 30),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _updateEmployee,
+                      icon: const Icon(Icons.save),
+                      label: const Text('Update Employee'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 48),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              _buildField('Employee Name', nameController, Icons.person),
-              const SizedBox(height: 12),
-              _buildField('Email', emailController, Icons.email, isRequired: false),
-              const SizedBox(height: 12),
-              _buildField('Employee ID', codeController, Icons.badge),
-              const SizedBox(height: 12),
-              _buildField('Employee NID', nidController, Icons.badge),
-              const SizedBox(height: 12),
-              _buildField('Employee Daily Wages', dailyWagesController, Icons.attach_money),
-              const SizedBox(height: 12),
-              _buildFieldPhone('Phone', phoneController, Icons.phone),
-              const SizedBox(height: 12),
-              _buildField('Father\'s Name', fatherController, Icons.person),
-              const SizedBox(height: 12),
-              _buildField('Mother\'s Name', motherController, Icons.person),
-              const SizedBox(height: 12),
-              _buildDateField('Date of Birth', dobController),
-              const SizedBox(height: 12),
-              _buildDateField('Joining Date', joiningController),
-              const SizedBox(height: 20),
-              _buildBiometricSection(),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _updateEmployee,
-                  icon: const Icon(Icons.update),
-                  label: const Text('Update Employee'),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

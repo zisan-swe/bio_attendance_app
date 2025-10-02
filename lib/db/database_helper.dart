@@ -213,9 +213,17 @@ class DatabaseHelper {
     return await db.insert(
       'attendance',
       attendance.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
+  Future<List<AttendanceModel>> getAllAttendances() async {
+    final db = await instance.database;
+    final result = await db.query(
+      'attendance',
+      orderBy: 'id DESC', //
+    );
+    return result.map((e) => AttendanceModel.fromMap(e)).toList();
+  }
+
 
   Future<int> deleteAttendance(int id) async {
     final db = await instance.database;

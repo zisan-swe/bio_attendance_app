@@ -23,36 +23,10 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
   @override
   void initState() {
     super.initState();
-    _refreshData();
     _attendanceFuture = Future.value([]);
     _employeeMapFuture = Future.value({});
-    _refreshData(); // async call to populate real data
+    _refreshData();
   }
-
-  // Future<void> _refreshData() async {
-  //   final attendanceProvider =
-  //   Provider.of<AttendanceProvider>(context, listen: false);
-  //   final employeeProvider =
-  //   Provider.of<EmployeeProvider>(context, listen: false);
-  //
-  //   setState(() {
-  //     // Load attendance
-  //     _attendanceFuture = attendanceProvider.getAllAttendance();
-  //
-  //     // Load all employees into a map by employeeNo for faster lookup
-  //     _employeeMapFuture = _attendanceFuture.then((attendanceList) async {
-  //       final Map<String, EmployeeModel?> employeeMap = {};
-  //       for (var attendance in attendanceList) {
-  //         if (!employeeMap.containsKey(attendance.employeeNo)) {
-  //           final employee = await employeeProvider
-  //               .getEmployeeByNumber(attendance.employeeNo.toString());
-  //           employeeMap[attendance.employeeNo] = employee;
-  //         }
-  //       }
-  //       return employeeMap;
-  //     });
-  //   });
-  // }
 
   Future<void> _refreshData() async {
     final attendanceProvider =
@@ -60,15 +34,15 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
     final employeeProvider =
     Provider.of<EmployeeProvider>(context, listen: false);
 
-    // Load attendance
+    // ✅ সব attendance নিন
     final attendanceList = await attendanceProvider.getAllAttendance();
 
-    // Build employee map
+    // ✅ employee mapping
     final Map<String, EmployeeModel?> employeeMap = {};
     for (var attendance in attendanceList) {
       if (!employeeMap.containsKey(attendance.employeeNo)) {
-        final employee = await employeeProvider
-            .getEmployeeByNumber(attendance.employeeNo.toString());
+        final employee =
+        await employeeProvider.getEmployeeByNumber(attendance.employeeNo);
         employeeMap[attendance.employeeNo] = employee;
       }
     }
@@ -78,7 +52,6 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
       _employeeMapFuture = Future.value(employeeMap);
     });
   }
-
 
   IconData _getActionIcon(String action) {
     switch (action) {
@@ -117,19 +90,14 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
             }
 
             if (snapshot.hasError) {
-              return Center(
-                child: Text('Error: ${snapshot.error}'),
-              );
+              return Center(child: Text('Error: ${snapshot.error}'));
             }
 
-            final attendanceList = (snapshot.data ?? [])
-                .where((attendance) =>
-                ['Regular', 'Early', 'Late'].contains(attendance.status))
-                .toList();
+            final attendanceList = snapshot.data ?? [];
 
             if (attendanceList.isEmpty) {
               return const Center(
-                child: Text('No regular attendance records found'),
+                child: Text('No attendance records found'),
               );
             }
 
@@ -143,7 +111,8 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
 
                 if (employeeMapSnapshot.hasError) {
                   return Center(
-                    child: Text('Error loading employees: ${employeeMapSnapshot.error}'),
+                    child: Text(
+                        'Error loading employees: ${employeeMapSnapshot.error}'),
                   );
                 }
 
@@ -153,12 +122,11 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
                   itemCount: attendanceList.length,
                   itemBuilder: (context, index) {
                     final attendance = attendanceList[index];
-                    final employee =
-                    employeeMap[attendance.employeeNo]; // Lookup
+                    final employee = employeeMap[attendance.employeeNo];
 
                     return Card(
-                      margin:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: Colors.green,
@@ -181,10 +149,12 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
                             ),
                             if (attendance.inTime.isNotEmpty)
                               Text(
-                                  'In Time: ${_timeFormat.format(DateTime.parse('2023-01-01 ${attendance.inTime}'))}'),
+                                'In Time: ${attendance.inTime}',
+                              ),
                             if (attendance.outTime.isNotEmpty)
                               Text(
-                                  'Out Time: ${_timeFormat.format(DateTime.parse('2023-01-01 ${attendance.outTime}'))}'),
+                                'Out Time: ${attendance.outTime}',
+                              ),
                             if (attendance.fingerprint.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
@@ -214,8 +184,10 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
                             String timeB =
                             b.inTime.isNotEmpty ? b.inTime : b.outTime;
 
-                            DateTime dtA = DateTime.parse('2023-01-01 $timeA');
-                            DateTime dtB = DateTime.parse('2023-01-01 $timeB');
+                            DateTime dtA =
+                            DateTime.parse('2023-01-01 $timeA');
+                            DateTime dtB =
+                            DateTime.parse('2023-01-01 $timeB');
 
                             return dtA.compareTo(dtB);
                           });

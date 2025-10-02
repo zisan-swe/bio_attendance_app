@@ -25,7 +25,7 @@ class AttendanceProvider with ChangeNotifier {
       final id = await db.insert(
         _attendanceTable,
         attendance.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
+        conflictAlgorithm: ConflictAlgorithm.ignore, // ✅ replace বাদ
       );
       notifyListeners();
       return id;
@@ -55,7 +55,15 @@ class AttendanceProvider with ChangeNotifier {
     }
   }
 
-  /// Fetch all attendance records
+  // Future<List<AttendanceModel>> getAllAttendance() async {
+  //   final db = await dbHelper.database;
+  //   final result = await db.query('attendance', orderBy: 'id DESC');
+  //   return result.map((map) => AttendanceModel.fromMap(map)).toList();
+  // }
+
+
+
+  // Fetch all attendance records
   Future<List<AttendanceModel>> getAllAttendance() async {
     try {
       final db = await dbHelper.database;

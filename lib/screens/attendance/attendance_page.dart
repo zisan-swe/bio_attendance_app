@@ -8,10 +8,8 @@ import '../../models/employee_model.dart';
 import '../../providers/attendance_provider.dart';
 import '../../services/location_service.dart';
 import '../../services/fingerprint_service.dart';
-import '../attendance/attendance_list_page.dart';
 import '../../services/api_service.dart';
 import '../../db/database_helper.dart';
-
 
 class AttendancePage extends StatefulWidget {
   const AttendancePage({super.key});
@@ -53,6 +51,7 @@ class _AttendancePageState extends State<AttendancePage> {
   static final _dateLogFormat = DateFormat('yyyy-MM-dd');
 
   void _updateTime() {
+    if (!mounted) return;
     final now = DateTime.now().toUtc().add(const Duration(hours: 6));
     setState(() {
       formattedTime = _timeFormat.format(now);
@@ -130,7 +129,6 @@ class _AttendancePageState extends State<AttendancePage> {
     final location = await locationService.getCurrentLocation();
     final safeLocation = (location != null && location.isNotEmpty) ? location : 'Unknown';
 
-// Fetch from settings
     final projectId = await DatabaseHelper.instance.getSettingBySlug('project_id');
     final blockId = await DatabaseHelper.instance.getSettingBySlug('block_id');
 
@@ -153,27 +151,10 @@ class _AttendancePageState extends State<AttendancePage> {
       synced: 0,
     );
 
-
     final attendanceProvider = context.read<AttendanceProvider>();
 
     try {
-      // 1️⃣ Save locally
       final localId = await attendanceProvider.insertAttendance(attendance);
-
-      // 2️⃣ Try API sync (returns bool)
-      // final synced = await ApiService.createAttendance(attendance);
-
-      // if (synced) {
-      //   // 3️⃣ Update local DB record as synced
-      //   await attendanceProvider.updateAttendance(
-      //     attendance.copyWith(id: localId, synced: 1),
-      //   );
-      //
-      //   _showSnack("✅ Attendance successfully!", isError: false);
-      // } else {
-      //   _showSnack("⚠️ Attendance saved locally. Sync pending.", isError: true);
-      // }
-
       final message = await ApiService.createAttendance(attendance);
       final synced = message.toLowerCase().contains("success");
 
@@ -185,16 +166,6 @@ class _AttendancePageState extends State<AttendancePage> {
       } else {
         _showSnack("⚠️ $message", isError: true);
       }
-
-
-
-
-      // 4️⃣ Navigate to Attendance List
-      // if (!mounted) return;
-      // Navigator.pushReplacement(
-      //   context,
-      //   MaterialPageRoute(builder: (context) => const AttendanceListPage()),
-      // );
     } catch (e) {
       debugPrint("Save Error: $e");
       _showSnack("❌ Failed to log attendance: $e", isError: true);
@@ -202,7 +173,6 @@ class _AttendancePageState extends State<AttendancePage> {
       setState(() => isScanning = false);
     }
   }
-
 
   void _showSnack(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -299,24 +269,12 @@ class _AttendancePageState extends State<AttendancePage> {
                   _buildFingerRow('Left Little', 'Right Little'),
                 ],
               ),
-              const SizedBox(height: 20),
-              if (!isScanning)
-                ElevatedButton.icon(
-                  onPressed: _startFingerprintScan,
-                  icon: const Icon(Icons.fingerprint),
-                  label: const Text('Scan Fingerprint'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueGrey,
-                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                  ),
-                ),
+              const SizedBox(height: 30),
               if (isScanning)
                 const Padding(
                   padding: EdgeInsets.all(16.0),
                   child: CircularProgressIndicator(),
                 ),
-              const SizedBox(height: 30),
             ],
           ),
         ),
@@ -363,11 +321,14 @@ class _AttendancePageState extends State<AttendancePage> {
       width: buttonWidth,
       height: 50,
       child: ElevatedButton(
-        onPressed: () {
+        onPressed: isScanning
+            ? null
+            : () async {
           setState(() {
             fingerScanStatus.updateAll((key, value) => false);
             fingerScanStatus[fingerName] = true;
           });
+          await _startFingerprintScan();
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: isScanned ? Colors.green : Colors.grey[300],

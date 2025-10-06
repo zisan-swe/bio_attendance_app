@@ -133,7 +133,7 @@ class _AttendancePageState extends State<AttendancePage> {
     final blockId = await DatabaseHelper.instance.getSettingBySlug('block_id');
 
     final attendance = AttendanceModel(
-      id: 0,
+      // id: null,
       deviceId: 'Device001',
       projectId: int.tryParse(projectId?.value ?? '0') ?? 0,
       blockId: int.tryParse(blockId?.value ?? '0') ?? 0,

@@ -1,23 +1,23 @@
 class AttendanceModel {
-  final int id;
+  final int? id; // ✅ Nullable (SQLite auto-increment ID)
   final String deviceId;
   final int projectId;
   final int blockId;
   final String employeeNo;
   final String workingDate;
-  final String attendanceStatus;
+  final String attendanceStatus; // Check In, Check Out, Break In, Break Out
   final String inTime;
   final String outTime;
   final String location;
   final String fingerprint;
-  final String status; // Only 'Regular', 'Early', 'Late'
+  final String status; // Regular, Early, Late
   final String remarks;
   final String createAt;
   final String updateAt;
   final int synced; // 0 = not synced, 1 = synced
 
   AttendanceModel({
-    required this.id,
+    this.id,
     required this.deviceId,
     required this.projectId,
     required this.blockId,
@@ -35,6 +35,7 @@ class AttendanceModel {
     required this.synced,
   }) : assert(['Regular', 'Early', 'Late'].contains(status), "Invalid status");
 
+  /// ✅ Copy existing model with modifications
   AttendanceModel copyWith({
     int? id,
     String? deviceId,
@@ -53,7 +54,9 @@ class AttendanceModel {
     String? updateAt,
     int? synced,
   }) {
-    final safeStatus = (status != null && ['Regular', 'Early', 'Late'].contains(status)) ? status : this.status;
+    final safeStatus = (status != null && ['Regular', 'Early', 'Late'].contains(status))
+        ? status
+        : this.status;
     return AttendanceModel(
       id: id ?? this.id,
       deviceId: deviceId ?? this.deviceId,
@@ -74,6 +77,7 @@ class AttendanceModel {
     );
   }
 
+  /// ✅ Convert object → Map (for SQLite insert/update)
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -95,29 +99,30 @@ class AttendanceModel {
     };
   }
 
+  /// ✅ Convert Map → Model (for reading from SQLite)
   factory AttendanceModel.fromMap(Map<String, dynamic> map) {
-    String rawStatus = map['status'] ?? 'Regular';
+    String rawStatus = map['status']?.toString() ?? 'Regular';
     if (!['Regular', 'Early', 'Late'].contains(rawStatus)) {
       rawStatus = 'Regular';
     }
 
     return AttendanceModel(
-      id: map['id'] ?? 0,
-      deviceId: map['device_id'] ?? '',
-      projectId: map['project_id'] ?? 0,
-      blockId: map['block_id'] ?? 0,
-      employeeNo: map['employee_no'] ?? '',
-      workingDate: map['working_date'] ?? '',
-      attendanceStatus: map['attendance_status'] ?? '',
-      inTime: map['in_time'] ?? '',
-      outTime: map['out_time'] ?? '',
-      location: map['location'] ?? '',
-      fingerprint: map['fingerprint'] ?? '',
+      id: map['id'] != null ? int.tryParse(map['id'].toString()) : null,
+      deviceId: map['device_id']?.toString() ?? '',
+      projectId: int.tryParse(map['project_id'].toString()) ?? 0,
+      blockId: int.tryParse(map['block_id'].toString()) ?? 0,
+      employeeNo: map['employee_no']?.toString() ?? '',
+      workingDate: map['working_date']?.toString() ?? '',
+      attendanceStatus: map['attendance_status']?.toString() ?? '',
+      inTime: map['in_time']?.toString() ?? '',
+      outTime: map['out_time']?.toString() ?? '',
+      location: map['location']?.toString() ?? '',
+      fingerprint: map['fingerprint']?.toString() ?? '',
       status: rawStatus,
-      remarks: map['remarks'] ?? '',
-      createAt: map['create_at'] ?? '',
-      updateAt: map['update_at'] ?? '',
-      synced: map['synced'] ?? 0,
+      remarks: map['remarks']?.toString() ?? '',
+      createAt: map['create_at']?.toString() ?? '',
+      updateAt: map['update_at']?.toString() ?? '',
+      synced: int.tryParse(map['synced']?.toString() ?? '0') ?? 0,
     );
   }
 }

@@ -114,6 +114,44 @@ class _WorkerPageState extends State<WorkerPage> {
     }
   }
 
+  Future<void> _loadAttendance() async {
+    try {
+      setState(() => _isLoading = true);
+
+      // 🔹 Get settings (project code and block id)
+      final projectSetting = await DatabaseHelper.instance.getSettingBySlug('project_id');
+      final blockSetting = await DatabaseHelper.instance.getSettingBySlug('block_id');
+
+      final String projectId = projectSetting?.value ?? "0";
+      final int blockId = int.tryParse(blockSetting?.value ?? "0") ?? 0;
+
+      debugPrint("📥 Fetching attendance for Project: $projectId, Block: $blockId");
+
+      // 🔹 Fetch attendance data (you must implement this in your ApiService)
+      final attendanceList = await ApiService.fetchEmployees(code: projectId, blockId: blockId);
+
+      debugPrint("✅ Attendance Loaded: ${attendanceList.length}");
+
+      // 🔹 (Optional) Update employee data with attendance info
+      // For example: mark present/absent on today's date, if needed.
+      // This assumes you have an "attendance" field or similar.
+      // Merge or annotate `employees` if needed.
+
+      // Show confirmation
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   const SnackBar(content: Text('✅ Attendance data loaded')),
+      // );
+    } catch (e) {
+      debugPrint("❌ Attendance load error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('⚠ Failed to load attendance')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+
   void _navigateToCreate({EmployeeModel? employee}) async {
     final result = await Navigator.push(
       context,
@@ -183,6 +221,12 @@ class _WorkerPageState extends State<WorkerPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Worker List'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => _loadAttendance(),
+          ),
+        ],
         backgroundColor: Colors.blueGrey,
         centerTitle: true,
         toolbarOpacity: 1,

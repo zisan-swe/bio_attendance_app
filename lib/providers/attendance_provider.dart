@@ -64,11 +64,26 @@ class AttendanceProvider with ChangeNotifier {
 
 
   // Fetch all attendance records
-  Future<List<AttendanceModel>> getAllAttendance() async {
+  Future<List<AttendanceModel>> getAllAttendance({String? query}) async {
     try {
-      final db = await dbHelper.database;
-      final result = await db.query(_attendanceTable, orderBy: 'create_at DESC');
-      return result.map(AttendanceModel.fromMap).toList();
+      final allData = await dbHelper.getAllAttendance();
+      List<AttendanceModel> data = allData;
+
+      // optional search
+      if (query != null && query.isNotEmpty) {
+        data = data
+            .where((a) => a.employeeNo.toLowerCase().contains(query.toLowerCase()))
+            .toList();
+      }
+
+      // Correct sorting by DateTime
+      data.sort((a, b) {
+        final aDate = DateTime.tryParse(a.createAt) ?? DateTime(1970);
+        final bDate = DateTime.tryParse(b.createAt) ?? DateTime(1970);
+        return aDate.compareTo(bDate); // oldest → latest
+      });
+
+      return data;
     } catch (e, stack) {
       debugPrint('❌ Error fetching attendance: $e\n$stack');
       return [];

@@ -1,12 +1,14 @@
 import 'dart:io';
+import 'dart:developer' as dev;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+
 import '../../models/employee_model.dart';
 import '../../providers/employee_provider.dart';
 import '../../services/api_service.dart';
-import '../../services/fingerprint_service.dart'; // ✅ Add this
+import '../../services/fingerprint_service.dart';
 
 class WorkerEditPage extends StatefulWidget {
   final EmployeeModel employee;
@@ -19,8 +21,9 @@ class WorkerEditPage extends StatefulWidget {
 
 class _WorkerEditPageState extends State<WorkerEditPage> {
   final _formKey = GlobalKey<FormState>();
-  final service = FingerprintService(); // ✅ এখানে initialize
-  late EmployeeModel employee; // local copy
+  final service = FingerprintService();
+
+  late EmployeeModel employee;
 
   late TextEditingController nameController;
   late TextEditingController emailController;
@@ -35,7 +38,7 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
 
   File? _profileImage;
 
-  Map<String, bool> fingerScanStatus = {
+  final Map<String, bool> fingerScanStatus = {
     'Left Thumb': false,
     'Left Index': false,
     'Left Middle': false,
@@ -52,41 +55,58 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
   void initState() {
     super.initState();
 
-    final emp = widget.employee;
-    nameController = TextEditingController(text: emp.name);
-    emailController = TextEditingController(text: emp.email);
-    codeController = TextEditingController(text: emp.employeeNo);
-    nidController = TextEditingController(text: emp.nid);
-    dailyWagesController = TextEditingController(text: emp.dailyWages.toStringAsFixed(2));
-    phoneController = TextEditingController(text: emp.phone);
-    fatherController = TextEditingController(text: emp.fatherName);
-    motherController = TextEditingController(text: emp.motherName);
-    dobController = TextEditingController(text: emp.dob);
-    joiningController = TextEditingController(text: emp.joiningDate);
-    _profileImage = emp.imagePath.isNotEmpty ? File(emp.imagePath) : null;
+    employee = widget.employee;
 
-    // Initialize finger scan values
+    nameController = TextEditingController(text: employee.name);
+    emailController = TextEditingController(text: employee.email);
+    codeController = TextEditingController(text: employee.employeeNo);
+    nidController = TextEditingController(text: employee.nid);
+    dailyWagesController = TextEditingController(
+        text: employee.dailyWages.toStringAsFixed(2));
+    phoneController = TextEditingController(text: employee.phone);
+    fatherController = TextEditingController(text: employee.fatherName);
+    motherController = TextEditingController(text: employee.motherName);
+    dobController = TextEditingController(text: employee.dob);
+    joiningController = TextEditingController(text: employee.joiningDate);
+
+    _profileImage =
+    employee.imagePath.isNotEmpty ? File(employee.imagePath) : null;
+
     final fingerValues = [
-      emp.fingerInfo1, emp.fingerInfo2, emp.fingerInfo3, emp.fingerInfo4, emp.fingerInfo5,
-      emp.fingerInfo6, emp.fingerInfo7, emp.fingerInfo8, emp.fingerInfo9, emp.fingerInfo10,
+      employee.fingerInfo1,
+      employee.fingerInfo2,
+      employee.fingerInfo3,
+      employee.fingerInfo4,
+      employee.fingerInfo5,
+      employee.fingerInfo6,
+      employee.fingerInfo7,
+      employee.fingerInfo8,
+      employee.fingerInfo9,
+      employee.fingerInfo10,
     ];
 
-    int i = 0;
-    fingerScanStatus.updateAll((key, _) => i < fingerValues.length && fingerValues[i++].isNotEmpty);
+    final keys = fingerScanStatus.keys.toList();
+    for (int j = 0; j < keys.length; j++) {
+      fingerScanStatus[keys[j]] = fingerValues[j].isNotEmpty;
+    }
   }
 
-  /// ✅ নতুন method - আসল ফিঙ্গার স্ক্যান
   Future<void> _scanFinger(String fingerName) async {
     try {
       final updatedEmp = await service.scanAndUpdateFinger(
-        employee: widget.employee,
+        employee: employee,
         fingerName: fingerName,
       );
 
       setState(() {
-        employee = updatedEmp; // ✅ local copy update
-        fingerScanStatus[fingerName] = true; // ✅ সফল হলে UI তে সবুজ দেখাবে
+        employee = updatedEmp;
+        fingerScanStatus[fingerName] = true;
       });
+
+      dev.log(
+        'Scanned $fingerName — length: ${_getFingerTemplateByName(fingerName).length}',
+        name: 'WorkerEditPage',
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$fingerName scanned successfully ✅')),
@@ -98,9 +118,35 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
     }
   }
 
+  String _getFingerTemplateByName(String fingerName) {
+    switch (fingerName) {
+      case 'Left Thumb':
+        return employee.fingerInfo1;
+      case 'Left Index':
+        return employee.fingerInfo3;
+      case 'Left Middle':
+        return employee.fingerInfo5;
+      case 'Left Ring':
+        return employee.fingerInfo7;
+      case 'Left Little':
+        return employee.fingerInfo9;
+      case 'Right Thumb':
+        return employee.fingerInfo2;
+      case 'Right Index':
+        return employee.fingerInfo4;
+      case 'Right Middle':
+        return employee.fingerInfo6;
+      case 'Right Ring':
+        return employee.fingerInfo8;
+      case 'Right Little':
+        return employee.fingerInfo10;
+      default:
+        return '';
+    }
+  }
+
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-
     showModalBottomSheet(
       context: context,
       builder: (_) => SafeArea(
@@ -111,8 +157,11 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
               title: const Text('Take Photo'),
               onTap: () async {
                 Navigator.pop(context);
-                final picked = await picker.pickImage(source: ImageSource.camera);
-                if (picked != null) setState(() => _profileImage = File(picked.path));
+                final picked =
+                await picker.pickImage(source: ImageSource.camera);
+                if (picked != null) {
+                  setState(() => _profileImage = File(picked.path));
+                }
               },
             ),
             ListTile(
@@ -120,8 +169,11 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
               title: const Text('Choose from Gallery'),
               onTap: () async {
                 Navigator.pop(context);
-                final picked = await picker.pickImage(source: ImageSource.gallery);
-                if (picked != null) setState(() => _profileImage = File(picked.path));
+                final picked =
+                await picker.pickImage(source: ImageSource.gallery);
+                if (picked != null) {
+                  setState(() => _profileImage = File(picked.path));
+                }
               },
             ),
           ],
@@ -130,7 +182,8 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
     );
   }
 
-  Future<void> _selectDate(BuildContext context, TextEditingController controller) async {
+  Future<void> _selectDate(
+      BuildContext context, TextEditingController controller) async {
     final picked = await showDatePicker(
       context: context,
       initialDate: DateTime.tryParse(controller.text) ?? DateTime(2000),
@@ -155,34 +208,27 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
       return;
     }
 
-    final updated = widget.employee.copyWith(
-      name: nameController.text,
-      email: emailController.text,
-      employeeNo: codeController.text,
-      nid: nidController.text,
+    final updated = employee.copyWith(
+      name: nameController.text.trim(),
+      email: emailController.text.trim(),
+      employeeNo: codeController.text.trim(),
+      nid: nidController.text.trim(),
       dailyWages: dailyWages,
-      phone: phoneController.text,
-      fatherName: fatherController.text,
-      motherName: motherController.text,
-      dob: dobController.text,
-      joiningDate: joiningController.text,
-      fingerInfo1: fingerScanStatus['Left Thumb']! ? '2' : '',
-      fingerInfo2: fingerScanStatus['Left Index']! ? '2' : '',
-      fingerInfo3: fingerScanStatus['Left Middle']! ? '1' : '',
-      fingerInfo4: fingerScanStatus['Left Ring']! ? '1' : '',
-      fingerInfo5: fingerScanStatus['Left Little']! ? '1' : '',
-      fingerInfo6: fingerScanStatus['Right Thumb']! ? '1' : '',
-      fingerInfo7: fingerScanStatus['Right Index']! ? '1' : '',
-      fingerInfo8: fingerScanStatus['Right Middle']! ? '1' : '',
-      fingerInfo9: fingerScanStatus['Right Ring']! ? '1' : '',
-      fingerInfo10: fingerScanStatus['Right Little']! ? '1' : '',
-      imagePath: _profileImage?.path ?? '',
+      phone: phoneController.text.trim(),
+      fatherName: fatherController.text.trim(),
+      motherName: motherController.text.trim(),
+      dob: dobController.text.trim(),
+      joiningDate: joiningController.text.trim(),
+      imagePath: _profileImage?.path ?? employee.imagePath,
     );
 
-    // Update locally via provider
+    dev.log('fingerInfo1 length: ${updated.fingerInfo1.length}',
+        name: 'WorkerEditPage');
+    dev.log('fingerInfo2 length: ${updated.fingerInfo2.length}',
+        name: 'WorkerEditPage');
+
     await provider.updateEmployee(updated);
 
-    // Update on server and fetch latest finger info
     final syncedEmployee = await ApiService.fetchAndUpdateFingers(
       employeeNo: updated.employeeNo,
       existingEmployee: updated,
@@ -196,31 +242,35 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
       Navigator.pop(context, true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('⚠️ Worker updated locally, but finger sync failed')),
+        const SnackBar(content: Text('⚠ Worker updated locally, but finger sync failed')),
       );
     }
   }
 
-
-
-  Widget _buildField(String label, TextEditingController controller, IconData icon, {bool isRequired = true}) {
+  Widget _buildField(
+      String label, TextEditingController controller, IconData icon,
+      {bool isRequired = true, TextInputType? type}) {
     return TextFormField(
       controller: controller,
+      keyboardType: type ?? TextInputType.text,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),
         border: const OutlineInputBorder(),
       ),
-      validator: isRequired ? (val) => val == null || val.trim().isEmpty ? 'Enter $label' : null : null,
+      validator: isRequired
+          ? (val) =>
+      val == null || val.trim().isEmpty ? 'Enter $label' : null
+          : null,
     );
   }
 
-  Widget _buildFieldPhone(String label, TextEditingController controller, IconData icon,
-      {bool isRequired = true, bool isPhone = false}) {
+  Widget _buildFieldPhone(
+      String label, TextEditingController controller, IconData icon) {
     return TextFormField(
       controller: controller,
-      keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
-      maxLength: isPhone ? 11 : null,
+      keyboardType: TextInputType.phone,
+      maxLength: 11,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),
@@ -228,8 +278,10 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
         counterText: '',
       ),
       validator: (value) {
-        if (isRequired && (value == null || value.trim().isEmpty)) return 'Enter $label';
-        if (isPhone && value != null && !RegExp(r'^\d{11}$').hasMatch(value)) return 'Phone number must be exactly 11 digits';
+        if (value == null || value.trim().isEmpty) return 'Enter $label';
+        if (!RegExp(r'^\d{11}$').hasMatch(value)) {
+          return 'Phone number must be exactly 11 digits';
+        }
         return null;
       },
     );
@@ -245,15 +297,15 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
         prefixIcon: const Icon(Icons.calendar_month),
         border: const OutlineInputBorder(),
       ),
-      validator: (val) => val == null || val.trim().isEmpty ? 'Select $label' : null,
+      validator: (val) =>
+      val == null || val.trim().isEmpty ? 'Select $label' : null,
     );
   }
 
   Widget _buildFingerButton(String label) {
     final isScanned = fingerScanStatus[label] ?? false;
     return ElevatedButton(
-      onPressed: () => _scanFinger(label), // ✅ এখানে toggle না করে scan করবে
-      // onPressed: () => setState(() => fingerScanStatus[label] = !isScanned),
+      onPressed: () => _scanFinger(label),
       style: ElevatedButton.styleFrom(
         backgroundColor: isScanned ? Colors.green : Colors.grey[300],
         foregroundColor: isScanned ? Colors.white : Colors.black,
@@ -267,7 +319,8 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Biometric Fingers', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        const Text('Biometric Fingers',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         const SizedBox(height: 10),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -301,7 +354,8 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Worker'), backgroundColor: Colors.blueGrey),
+      appBar:
+      AppBar(title: const Text('Edit Worker'), backgroundColor: Colors.blueGrey),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -312,23 +366,28 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
                 onTap: _pickImage,
                 child: CircleAvatar(
                   radius: 50,
-                  backgroundImage: _profileImage != null ? FileImage(_profileImage!) : null,
+                  backgroundImage:
+                  _profileImage != null ? FileImage(_profileImage!) : null,
                   backgroundColor: Colors.grey[300],
-                  child: _profileImage == null ? const Icon(Icons.camera_alt) : null,
+                  child: _profileImage == null
+                      ? const Icon(Icons.camera_alt)
+                      : null,
                 ),
               ),
               const SizedBox(height: 12),
               _buildField('Worker Name', nameController, Icons.person),
               const SizedBox(height: 12),
-              _buildField('Email', emailController, Icons.email, isRequired: false),
+              _buildField('Email', emailController, Icons.email,
+                  isRequired: false, type: TextInputType.emailAddress),
               const SizedBox(height: 12),
               _buildField('Worker ID', codeController, Icons.badge),
               const SizedBox(height: 12),
-              _buildField('Worker NID', nidController, Icons.badge),
+              _buildField('Worker NID', nidController, Icons.badge,isRequired: false),
               const SizedBox(height: 12),
-              _buildField('Worker Daily Wages', dailyWagesController, Icons.badge),
+              _buildField('Daily Wages', dailyWagesController, Icons.money,
+                  type: TextInputType.number),
               const SizedBox(height: 12),
-              _buildFieldPhone('Phone', phoneController, Icons.phone, isPhone: true),
+              _buildFieldPhone('Phone', phoneController, Icons.phone),
               const SizedBox(height: 12),
               _buildField('Father\'s Name', fatherController, Icons.person),
               const SizedBox(height: 12),

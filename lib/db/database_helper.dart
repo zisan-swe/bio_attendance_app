@@ -213,13 +213,15 @@ class DatabaseHelper {
     return await db.insert(
       'attendance',
       attendance.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.abort, // ✅ নতুন row add করবে, পুরনো delete করবে না
     );
   }
-  Future<List<AttendanceModel>> getAllAttendances() async {
+
+  Future<List<AttendanceModel>> getAllAttendance() async {
     final db = await instance.database;
     final result = await db.query(
-      'attendance',
-      orderBy: 'id DESC', //
+      'attendance',      // direct table name
+      orderBy: 'create_at ASC', // oldest → latest
     );
     return result.map((e) => AttendanceModel.fromMap(e)).toList();
   }

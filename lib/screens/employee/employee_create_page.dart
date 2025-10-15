@@ -71,7 +71,6 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
         'Right Little': emp.fingerInfo10,
       };
     } else {
-      // initialize empty
       fingerTemplates = {
         'Left Thumb': '',
         'Left Index': '',
@@ -144,33 +143,12 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     }
   }
 
-  // Future<void> _scanFinger(String fingerName) async {
-  //   try {
-  //     final tpl = await _fingerSvc.scanFingerprint();
-  //     setState(() {
-  //       fingerTemplates[fingerName] = tpl;
-  //     });
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(content: Text("✅ $fingerName captured")),
-  //     );
-  //   } catch (e) {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(content: Text("❌ $fingerName failed: $e")),
-  //     );
-  //   }
-  // }
-
   Future<void> _scanFinger(String fingerName) async {
     try {
       final tpl = await _fingerSvc.scanFingerprint();
-      print("👉 Captured $fingerName = $tpl");  // Debugging
-
       setState(() {
         fingerTemplates[fingerName] = tpl;
       });
-
-      print("👉 fingerTemplates map = $fingerTemplates"); // Debugging
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("✅ $fingerName captured")),
       );
@@ -181,65 +159,15 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     }
   }
 
-
-  // void _save() async {
-  //   if (_formKey.currentState!.validate()) {
-  //     final provider =
-  //     Provider.of<EmployeeProvider>(context, listen: false);
-  //
-  //     final dailyWages =
-  //         double.tryParse(dailyWagesController.text.trim()) ?? 0.0;
-  //
-  //     final employee = EmployeeModel(
-  //       id: widget.employee?.id,
-  //       name: nameController.text.trim(),
-  //       email: emailController.text.trim(),
-  //       employeeNo: codeController.text.trim(),
-  //       nid: nidController.text.trim(),
-  //       dailyWages: dailyWages,
-  //       phone: phoneController.text.trim(),
-  //       fatherName: fatherController.text.trim(),
-  //       motherName: motherController.text.trim(),
-  //       dob: dobController.text.trim(),
-  //       joiningDate: joiningController.text.trim(),
-  //       employeeType: 1,
-  //       fingerInfo1: fingerTemplates['Left Thumb'] ?? '',
-  //       fingerInfo2: fingerTemplates['Left Index'] ?? '',
-  //       fingerInfo3: fingerTemplates['Left Middle'] ?? '',
-  //       fingerInfo4: fingerTemplates['Left Ring'] ?? '',
-  //       fingerInfo5: fingerTemplates['Left Little'] ?? '',
-  //       fingerInfo6: fingerTemplates['Right Thumb'] ?? '',
-  //       fingerInfo7: fingerTemplates['Right Index'] ?? '',
-  //       fingerInfo8: fingerTemplates['Right Middle'] ?? '',
-  //       fingerInfo9: fingerTemplates['Right Ring'] ?? '',
-  //       fingerInfo10: fingerTemplates['Right Little'] ?? '',
-  //       imagePath: _profileImage?.path ?? '',
-  //     );
-  //
-  //     if (widget.employee == null) {
-  //       await provider.addEmployee(employee);
-  //     } else {
-  //       await provider.updateEmployee(employee);
-  //     }
-  //
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(content: Text('✅ Employee Saved Successfully')),
-  //     );
-  //
-  //     Navigator.pop(context, true);
-  //   }
-  // }
-
   Future<void> _save() async {
     if (_formKey.currentState!.validate()) {
       final provider = Provider.of<EmployeeProvider>(context, listen: false);
-
       final dailyWages =
           double.tryParse(dailyWagesController.text.trim()) ?? 0.0;
 
-      // ---- Settings থেকে company_id ফেচ ----
-      final setting = await DatabaseHelper.instance.getSettingBySlug('company_id');
-      final companyId = int.tryParse(setting?.value ?? '') ?? 1; // default = 1
+      final setting =
+      await DatabaseHelper.instance.getSettingBySlug('company_id');
+      final companyId = int.tryParse(setting?.value ?? '') ?? 1;
 
       final employee = EmployeeModel(
         id: widget.employee?.id,
@@ -254,7 +182,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
         dob: dobController.text.trim(),
         joiningDate: joiningController.text.trim(),
         employeeType: 'Wages',
-        companyId:companyId,
+        companyId: companyId,
         fingerInfo1: fingerTemplates['Left Thumb'] ?? '',
         fingerInfo2: fingerTemplates['Left Index'] ?? '',
         fingerInfo3: fingerTemplates['Left Middle'] ?? '',
@@ -274,13 +202,10 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
         await provider.updateEmployee(employee);
       }
 
-      // 🔹 API তে পাঠানো
       try {
-        // await ApiService.createLabour(employee);
         await ApiService.createLabour(employee.toJson());
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('✅ Employee saved & uploaded to API')),
+          const SnackBar(content: Text('✅ Employee saved & uploaded to API')),
         );
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -292,13 +217,33 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     }
   }
 
-  Widget _buildInputField(String label, TextEditingController controller,
-      IconData icon,
-      {bool isRequired = true}) {
+  /// 🔹 Common Input Field with optional red asterisk
+  Widget _buildInputField(
+      String label,
+      TextEditingController controller,
+      IconData icon, {
+        bool isRequired = true,
+      }) {
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(
-        labelText: label,
+        label: RichText(
+          text: TextSpan(
+            text: label,
+            style: const TextStyle(color: Colors.black, fontSize: 16),
+            children: isRequired
+                ? const [
+              TextSpan(
+                text: ' *',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ]
+                : [],
+          ),
+        ),
         prefixIcon: Icon(icon),
         border: const OutlineInputBorder(),
       ),
@@ -309,13 +254,28 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     );
   }
 
+  /// 🔹 Phone field with red asterisk
   Widget _buildInputFieldPhone(
       String label, TextEditingController controller, IconData icon) {
     return TextFormField(
       controller: controller,
       keyboardType: TextInputType.phone,
       decoration: InputDecoration(
-        labelText: label,
+        label: RichText(
+          text: const TextSpan(
+            text: 'Phone Number',
+            style: TextStyle(color: Colors.black, fontSize: 16),
+            children: [
+              TextSpan(
+                text: ' *',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
         prefixIcon: Icon(icon),
         border: const OutlineInputBorder(),
       ),
@@ -331,25 +291,46 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     );
   }
 
+  /// 🔹 Date Field with optional red asterisk
   Widget _buildDateField(
-      String label, TextEditingController controller) {
+      String label,
+      TextEditingController controller, {
+        bool isRequired = true,
+      }) {
     return TextFormField(
       controller: controller,
       readOnly: true,
       onTap: () => _selectDate(context, controller),
       decoration: InputDecoration(
-        labelText: label,
+        label: RichText(
+          text: TextSpan(
+            text: label,
+            style: const TextStyle(color: Colors.black, fontSize: 16),
+            children: isRequired
+                ? const [
+              TextSpan(
+                text: ' *',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ]
+                : [],
+          ),
+        ),
         prefixIcon: const Icon(Icons.calendar_today),
         border: const OutlineInputBorder(),
       ),
-      validator: (val) =>
-      val == null || val.trim().isEmpty ? 'Select $label' : null,
+      validator: (val) {
+        if (!isRequired) return null;
+        return val == null || val.trim().isEmpty ? 'Select $label' : null;
+      },
     );
   }
 
   Widget _buildFinger(String fingerName) {
     bool isScanned = (fingerTemplates[fingerName]?.isNotEmpty ?? false);
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: ElevatedButton(
@@ -398,18 +379,14 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                 _buildFinger('Left Little'),
               ],
             ),
-
             Column(
               children: const [
                 SizedBox(height: 30),
-                Icon(Icons.pan_tool_alt_rounded,
-                    size: 60, color: Colors.grey),
+                Icon(Icons.pan_tool_alt_rounded, size: 60, color: Colors.grey),
                 SizedBox(height: 10),
-                Icon(Icons.pan_tool_alt_rounded,
-                    size: 60, color: Colors.grey),
+                Icon(Icons.pan_tool_alt_rounded, size: 60, color: Colors.grey),
               ],
             ),
-
             // Right Hand
             Column(
               children: [
@@ -436,9 +413,8 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.employee == null
-            ? 'Create Employee'
-            : 'Edit Employee'),
+        title:
+        Text(widget.employee == null ? 'Create Employee' : 'Edit Employee'),
         backgroundColor: Colors.blueGrey,
       ),
       body: SingleChildScrollView(
@@ -474,57 +450,28 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                     runSpacing: 20,
                     spacing: 20,
                     children: [
-                      SizedBox(
-                        width: isWide ? 400 : double.infinity,
-                        child: _buildInputField(
-                            'Employee Name', nameController, Icons.person),
-                      ),
-                      SizedBox(
-                        width: isWide ? 400 : double.infinity,
-                        child: _buildInputField(
-                            'Employee Email', emailController, Icons.email,
-                            isRequired: false),
-                      ),
-                      SizedBox(
-                        width: isWide ? 400 : double.infinity,
-                        child: _buildInputField(
-                            'Employee ID', codeController, Icons.code),
-                      ),
-                      SizedBox(
-                        width: isWide ? 400 : double.infinity,
-                        child: _buildInputField(
-                            'Employee NID', nidController, Icons.badge),
-                      ),
-                      SizedBox(
-                        width: isWide ? 400 : double.infinity,
-                        child: _buildInputField('Employee Daily Wages',
-                            dailyWagesController, Icons.attach_money),
-                      ),
-                      SizedBox(
-                        width: isWide ? 400 : double.infinity,
-                        child: _buildInputFieldPhone(
-                            'Phone Number', phoneController, Icons.phone),
-                      ),
-                      SizedBox(
-                        width: isWide ? 400 : double.infinity,
-                        child: _buildInputField(
-                            'Father\'s Name', fatherController, Icons.man),
-                      ),
-                      SizedBox(
-                        width: isWide ? 400 : double.infinity,
-                        child: _buildInputField(
-                            'Mother\'s Name', motherController, Icons.woman),
-                      ),
-                      SizedBox(
-                        width: isWide ? 400 : double.infinity,
-                        child: _buildDateField(
-                            'Date of Birth', dobController),
-                      ),
-                      SizedBox(
-                        width: isWide ? 400 : double.infinity,
-                        child: _buildDateField(
-                            'Joining Date', joiningController),
-                      ),
+                      _buildInputField('Employee Name', nameController,
+                          Icons.person),
+                      _buildInputField('Employee Email', emailController,
+                          Icons.email,
+                          isRequired: false),
+                      _buildInputField('Employee ID', codeController, Icons.code,
+                          isRequired: false),
+                      _buildInputField('Employee NID', nidController,
+                          Icons.badge,
+                          isRequired: false),
+                      _buildInputField('Employee Daily Wages',
+                          dailyWagesController, Icons.attach_money),
+                      _buildInputFieldPhone(
+                          'Phone Number', phoneController, Icons.phone),
+                      _buildInputField(
+                          'Father\'s Name', fatherController, Icons.man),
+                      _buildInputField('Mother\'s Name', motherController,
+                          Icons.woman,
+                          isRequired: false),
+                      _buildDateField('Date of Birth', dobController,
+                          isRequired: false),
+                      _buildDateField('Joining Date', joiningController),
                     ],
                   ),
                   const SizedBox(height: 30),

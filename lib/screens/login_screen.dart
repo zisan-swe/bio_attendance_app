@@ -55,10 +55,19 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildHeader() {
     return Column(
       children: [
-        Icon(Icons.fingerprint, size: 80, color: Colors.blueAccent),
+        // Add your logo here
+        Image.asset(
+          'assets/logo.jpeg', // path to your logo
+          height: 100, // adjust size as needed
+        ),
         SizedBox(height: 16),
+
+        // You can keep or remove the fingerprint icon
+        // Icon(Icons.fingerprint, size: 80, color: Colors.blueAccent),
+        // SizedBox(height: 16),
+
         Text(
-          'Biometric Attendance',
+          'KISAN BOTANIX',
           style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
         ),
         Text(

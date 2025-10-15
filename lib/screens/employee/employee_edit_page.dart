@@ -188,13 +188,73 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
     Navigator.pop(context, true);
   }
 
-  Widget _buildInputField(String label, TextEditingController controller,
-      IconData icon,
-      {bool isRequired = true}) {
+  // Widget _buildInputField(String label, TextEditingController controller,
+  //     IconData icon,
+  //     {bool isRequired = true}) {
+  //   return TextFormField(
+  //     controller: controller,
+  //     decoration: InputDecoration(
+  //       labelText: label,
+  //       prefixIcon: Icon(icon),
+  //       border: const OutlineInputBorder(),
+  //     ),
+  //     validator: (val) {
+  //       if (!isRequired) return null;
+  //       return val == null || val.trim().isEmpty ? 'Enter $label' : null;
+  //     },
+  //   );
+  // }
+  //
+  // Widget _buildDateField(
+  //     String label,
+  //     TextEditingController controller, {
+  //       bool isRequired = true,
+  //     }) {
+  //   return TextFormField(
+  //     controller: controller,
+  //     readOnly: true,
+  //     onTap: () => _selectDate(context, controller),
+  //     decoration: InputDecoration(
+  //       labelText: label,
+  //       prefixIcon: const Icon(Icons.calendar_today),
+  //       border: const OutlineInputBorder(),
+  //     ),
+  //     validator: (val) {
+  //       if (!isRequired) return null;
+  //       return val == null || val.trim().isEmpty ? 'Select $label' : null;
+  //     },
+  //   );
+  // }
+
+  Widget _buildInputField(
+      String label,
+      TextEditingController controller,
+      IconData icon, {
+        bool isRequired = true,
+      }) {
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(
-        labelText: label,
+        label: RichText(
+          text: TextSpan(
+            text: label,
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 16,
+            ),
+            children: isRequired
+                ? const [
+              TextSpan(
+                text: ' *',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ]
+                : [],
+          ),
+        ),
         prefixIcon: Icon(icon),
         border: const OutlineInputBorder(),
       ),
@@ -205,20 +265,46 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
     );
   }
 
-  Widget _buildDateField(String label, TextEditingController controller) {
+  Widget _buildDateField(
+      String label,
+      TextEditingController controller, {
+        bool isRequired = true,
+      }) {
     return TextFormField(
       controller: controller,
       readOnly: true,
       onTap: () => _selectDate(context, controller),
       decoration: InputDecoration(
-        labelText: label,
+        label: RichText(
+          text: TextSpan(
+            text: label,
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 16,
+            ),
+            children: isRequired
+                ? const [
+              TextSpan(
+                text: ' *',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ]
+                : [],
+          ),
+        ),
         prefixIcon: const Icon(Icons.calendar_today),
         border: const OutlineInputBorder(),
       ),
-      validator: (val) =>
-      val == null || val.trim().isEmpty ? 'Select $label' : null,
+      validator: (val) {
+        if (!isRequired) return null;
+        return val == null || val.trim().isEmpty ? 'Select $label' : null;
+      },
     );
   }
+
 
   Widget _buildFinger(String fingerName) {
     final isScanned = (fingerTemplates[fingerName]?.isNotEmpty ?? false);
@@ -349,12 +435,14 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
                       SizedBox(
                         width: isWide ? 400 : double.infinity,
                         child: _buildInputField(
-                            'Employee ID', codeController, Icons.code),
+                            'Employee ID', codeController, Icons.code,
+                            isRequired: false),
                       ),
                       SizedBox(
                         width: isWide ? 400 : double.infinity,
                         child: _buildInputField(
-                            'Employee NID', nidController, Icons.badge),
+                            'Employee NID', nidController, Icons.badge,
+                            isRequired: false),
                       ),
                       SizedBox(
                         width: isWide ? 400 : double.infinity,
@@ -374,11 +462,13 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
                       SizedBox(
                         width: isWide ? 400 : double.infinity,
                         child: _buildInputField(
-                            'Mother\'s Name', motherController, Icons.woman),
+                            'Mother\'s Name', motherController, Icons.woman,
+                            isRequired: false),
                       ),
                       SizedBox(
                         width: isWide ? 400 : double.infinity,
-                        child: _buildDateField('Date of Birth', dobController),
+                        child: _buildDateField('Date of Birth', dobController,
+                            isRequired: false),
                       ),
                       SizedBox(
                         width: isWide ? 400 : double.infinity,

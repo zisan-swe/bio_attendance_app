@@ -27,7 +27,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 15, // শুধু version বাড়ান
+      version: 16, // শুধু version বাড়ান
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -98,11 +98,38 @@ class DatabaseHelper {
         slug TEXT UNIQUE
       )
     ''');
+    // Company Settings table
+      await db.execute('''
+    CREATE TABLE company_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_name TEXT,
+      address TEXT,
+      branch_id INTEGER,
+      user TEXT
+    )
+  ''');
+
   }
 
   /// Runs when version number increases
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     dev.log('🛠 Upgrading DB from $oldVersion to $newVersion', name: 'DatabaseHelper');
+
+    // Add company_settings table when upgrading from versions <16
+    if (oldVersion < 16) {
+      // Create only if it doesn't already exist (defensive)
+      await db.execute('''
+    CREATE TABLE IF NOT EXISTS company_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_name TEXT,
+      address TEXT,
+      branch_id INTEGER,
+      user TEXT
+    )
+  ''');
+      dev.log('✅ Created company_settings table', name: 'DatabaseHelper');
+    }
+
 
     // Add 'finger_info11' column to employee table as an example if upgrading from <12
     if (oldVersion < 12) {
@@ -360,6 +387,56 @@ class DatabaseHelper {
   //   if (setting == null || setting.value == null) return defaultValue;
   //   return int.tryParse(setting.value!) ?? defaultValue;
   // }
+
+
+  // ---------------- Company Settings CRUD ----------------
+  Future<int> insertCompanySetting({
+    required String companyName,
+    String? address,
+    int? branchId,
+    String? user,
+  }) async {
+    final db = await instance.database;
+    return await db.insert('company_settings', {
+      'company_name': companyName,
+      'address': address,
+      'branch_id': branchId,
+      'user': user,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<Map<String, dynamic>?> getFirstCompanySetting() async {
+    final db = await instance.database;
+    final rows = await db.query('company_settings', orderBy: 'id ASC', limit: 1);
+    return rows.isNotEmpty ? rows.first : null;
+  }
+
+  Future<List<Map<String, dynamic>>> getAllCompanySettings() async {
+    final db = await instance.database;
+    return await db.query('company_settings', orderBy: 'id ASC');
+  }
+
+  Future<int> updateCompanySetting(int id, {
+    String? companyName,
+    String? address,
+    int? branchId,
+    String? user,
+  }) async {
+    final db = await instance.database;
+    final updates = <String, Object?>{};
+    if (companyName != null) updates['company_name'] = companyName;
+    if (address != null) updates['address'] = address;
+    if (branchId != null) updates['branch_id'] = branchId;
+    if (user != null) updates['user'] = user;
+
+    if (updates.isEmpty) return 0;
+    return await db.update('company_settings', updates, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> deleteCompanySetting(int id) async {
+    final db = await instance.database;
+    return await db.delete('company_settings', where: 'id = ?', whereArgs: [id]);
+  }
 
 
   // ---------------- Close DB ----------------

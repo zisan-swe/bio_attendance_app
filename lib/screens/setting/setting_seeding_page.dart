@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../db/setting_seeder.dart';
 import '../../db/attendance_seeder.dart'; // Make sure this is imported
+import 'company_settings_info.dart';
 import 'settings_list_page.dart';
 
 class SettingSeedingPage extends StatelessWidget {
@@ -40,6 +41,19 @@ class SettingSeedingPage extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (_) => const SettingsListPage(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.settings_applications),
+              label: const Text("Company Settings Info"),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CompanySettingsInfoPage(),
                   ),
                 );
               },

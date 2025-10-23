@@ -130,7 +130,8 @@ class _SettingsListPageState extends State<SettingsListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Settings List")),
+      appBar: AppBar(title: const Text("Settings List"),
+        backgroundColor: Colors.blueGrey,),
       body: _settings.isEmpty
           ? const Center(child: Text("⚠ No settings found!"))
           : ListView.builder(

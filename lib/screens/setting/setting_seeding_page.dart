@@ -14,6 +14,13 @@ class SettingSeedingPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Setting Seeder Page"),
+        centerTitle: true,
+        elevation: 25,
+        backgroundColor: Colors.blueGrey,
+        titleTextStyle: TextStyle(
+            fontSize: 25,
+            fontWeight: FontWeight.bold,
+           ),
       ),
       body: Center(
         child: Column(
@@ -27,6 +34,9 @@ class SettingSeedingPage extends StatelessWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text("✅ Dummy settings seeded successfully!"),
+                    behavior: SnackBarBehavior.floating,
+                    showCloseIcon: true,
+                    duration: const Duration(seconds: 2),
                   ),
                 );
               },
@@ -34,7 +44,7 @@ class SettingSeedingPage extends StatelessWidget {
 
             const SizedBox(height: 20),
             ElevatedButton.icon(
-              icon: const Icon(Icons.list),
+              icon: const Icon(Icons.settings_display_sharp),
               label: const Text("View Settings"),
               onPressed: () {
                 Navigator.push(

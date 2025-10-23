@@ -126,7 +126,6 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-
       body: SafeArea(
         child: Stack(
           children: [

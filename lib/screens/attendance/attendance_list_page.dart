@@ -94,6 +94,7 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Attendance Records'),
+        backgroundColor: Colors.blueGrey,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

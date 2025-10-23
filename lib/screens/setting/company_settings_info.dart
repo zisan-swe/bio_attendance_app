@@ -114,7 +114,7 @@ class _CompanySettingsInfoPageState extends State<CompanySettingsInfoPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Company Settings Info'),
-        // actions: [
+        backgroundColor: Colors.blueGrey,        // actions: [
         //   IconButton(
         //     tooltip: 'Reset form',
         //     onPressed: isLoading || _saving ? null : _resetForm,

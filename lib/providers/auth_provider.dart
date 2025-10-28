@@ -11,7 +11,7 @@ class AuthProvider with ChangeNotifier {
   Map<String, dynamic>? get userData => _userData;
   String? get token => _token;
 
-  static const String baseUrl = "https://kisan.rahmangrouperp.com/api/v1";
+  static const String baseUrl = "https://bats.kisanbotanix.com/api/v1";
 
   /// Login with email/password
   Future<bool> login(String email, String password) async {

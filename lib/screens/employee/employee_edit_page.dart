@@ -452,7 +452,8 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
                       SizedBox(
                         width: isWide ? 400 : double.infinity,
                         child: _buildInputField(
-                            'Phone Number', phoneController, Icons.phone),
+                            'Phone Number', phoneController, Icons.phone,
+                            isRequired: false),
                       ),
                       SizedBox(
                         width: isWide ? 400 : double.infinity,

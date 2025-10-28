@@ -255,38 +255,64 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
   }
 
   /// 🔹 Phone field with red asterisk
+  // Widget _buildInputFieldPhone(
+  //     String label, TextEditingController controller, IconData icon) {
+  //   return TextFormField(
+  //     controller: controller,
+  //     keyboardType: TextInputType.phone,
+  //     decoration: InputDecoration(
+  //       label: RichText(
+  //         text: const TextSpan(
+  //           text: 'Phone Number',
+  //           style: TextStyle(color: Colors.black, fontSize: 16),
+  //           children: [
+  //             TextSpan(
+  //               text: ' *',
+  //               style: TextStyle(
+  //                 color: Colors.red,
+  //                 fontWeight: FontWeight.bold,
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //       prefixIcon: Icon(icon),
+  //       border: const OutlineInputBorder(),
+  //     ),
+  //     maxLength: 11,
+  //     validator: (value) {
+  //       if (value == null || value.isEmpty) {
+  //         return 'Please enter your phone number';
+  //       } else if (!RegExp(r'^\d{11}$').hasMatch(value)) {
+  //         return 'Phone number must be exactly 11 digits';
+  //       }
+  //       return null;
+  //     },
+  //   );
+  // }
+
+
+  /// 🔹 Optional Phone field (not required)
   Widget _buildInputFieldPhone(
       String label, TextEditingController controller, IconData icon) {
     return TextFormField(
       controller: controller,
       keyboardType: TextInputType.phone,
       decoration: InputDecoration(
-        label: RichText(
-          text: const TextSpan(
-            text: 'Phone Number',
-            style: TextStyle(color: Colors.black, fontSize: 16),
-            children: [
-              TextSpan(
-                text: ' *',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.black, fontSize: 16),
         prefixIcon: Icon(icon),
         border: const OutlineInputBorder(),
       ),
       maxLength: 11,
       validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please enter your phone number';
-        } else if (!RegExp(r'^\d{11}$').hasMatch(value)) {
-          return 'Phone number must be exactly 11 digits';
+        // Only validate if something is entered
+        if (value != null && value.isNotEmpty) {
+          if (!RegExp(r'^\d{11}$').hasMatch(value)) {
+            return 'Phone number must be exactly 11 digits';
+          }
         }
-        return null;
+        return null; // Valid or empty (optional)
       },
     );
   }

@@ -6,7 +6,7 @@ import '../models/employee_model.dart';
 import '../providers/employee_provider.dart';
 
 class ApiService {
-  static const String baseUrl = "https://kisan.rahmangrouperp.com/api/v1";
+  static const String baseUrl = "https://bats.kisanbotanix.com/api/v1";
 
   // --- Labour Create (already implemented) ---
   static Future<bool> createLabour(Map<String, dynamic> body) async {

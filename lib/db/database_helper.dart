@@ -33,8 +33,6 @@ class DatabaseHelper {
     );
   }
 
-
-
   /// Create all tables fresh (first install or after delete DB)
   Future<void> _createDB(Database db, int version) async {
     // Employee table
@@ -99,7 +97,7 @@ class DatabaseHelper {
       )
     ''');
     // Company Settings table
-      await db.execute('''
+    await db.execute('''
     CREATE TABLE company_settings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       company_name TEXT,
@@ -108,12 +106,12 @@ class DatabaseHelper {
       user TEXT
     )
   ''');
-
   }
 
   /// Runs when version number increases
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    dev.log('🛠 Upgrading DB from $oldVersion to $newVersion', name: 'DatabaseHelper');
+    dev.log('🛠 Upgrading DB from $oldVersion to $newVersion',
+        name: 'DatabaseHelper');
 
     // Add company_settings table when upgrading from versions <16
     if (oldVersion < 16) {
@@ -130,14 +128,17 @@ class DatabaseHelper {
       dev.log('✅ Created company_settings table', name: 'DatabaseHelper');
     }
 
-
     // Add 'finger_info11' column to employee table as an example if upgrading from <12
     if (oldVersion < 12) {
       final empColumns = await db.rawQuery("PRAGMA table_info(employee)");
-      final empCols = empColumns.map((c) => c['name'] as String?).whereType<String>().toList();
+      final empCols = empColumns
+          .map((c) => c['name'] as String?)
+          .whereType<String>()
+          .toList();
 
       if (!empCols.contains('company_id')) {
-        await db.execute('ALTER TABLE employee ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1');
+        await db.execute(
+            'ALTER TABLE employee ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1');
         dev.log('✅ Added company_id to employee table', name: 'DatabaseHelper');
       }
 
@@ -150,10 +151,14 @@ class DatabaseHelper {
     // Attendance table: Add 'status' column if missing
     if (oldVersion < 12) {
       final attColumns = await db.rawQuery("PRAGMA table_info(attendance)");
-      final attCols = attColumns.map((c) => c['name'] as String?).whereType<String>().toList();
+      final attCols = attColumns
+          .map((c) => c['name'] as String?)
+          .whereType<String>()
+          .toList();
 
       if (!attCols.contains('status')) {
-        await db.execute("ALTER TABLE attendance ADD COLUMN status TEXT NOT NULL DEFAULT 'Regular'");
+        await db.execute(
+            "ALTER TABLE attendance ADD COLUMN status TEXT NOT NULL DEFAULT 'Regular'");
         dev.log('✅ Added status to attendance table', name: 'DatabaseHelper');
       }
     }
@@ -177,7 +182,6 @@ class DatabaseHelper {
     }
   }
 
-
   // ---------------- Employee CRUD ----------------
   Future<int> insertEmployee(EmployeeModel employee) async {
     final db = await instance.database;
@@ -193,10 +197,10 @@ class DatabaseHelper {
 
     final result = employeeType != null
         ? await db.query(
-      'employee',
-      where: 'employee_type = ?',
-      whereArgs: [employeeType],
-    )
+            'employee',
+            where: 'employee_type = ?',
+            whereArgs: [employeeType],
+          )
         : await db.query('employee');
 
     return result.map((e) => EmployeeModel.fromMap(e)).toList();
@@ -232,27 +236,25 @@ class DatabaseHelper {
     return result.isNotEmpty ? EmployeeModel.fromMap(result.first) : null;
   }
 
-
-
   // ---------------- Attendance CRUD ----------------
   Future<int> insertAttendance(AttendanceModel attendance) async {
     final db = await instance.database;
     return await db.insert(
       'attendance',
       attendance.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.abort, // ✅ নতুন row add করবে, পুরনো delete করবে না
+      conflictAlgorithm:
+          ConflictAlgorithm.abort, // ✅ নতুন row add করবে, পুরনো delete করবে না
     );
   }
 
   Future<List<AttendanceModel>> getAllAttendance() async {
     final db = await instance.database;
     final result = await db.query(
-      'attendance',      // direct table name
+      'attendance', // direct table name
       orderBy: 'create_at ASC', // oldest → latest
     );
     return result.map((e) => AttendanceModel.fromMap(e)).toList();
   }
-
 
   Future<int> deleteAttendance(int id) async {
     final db = await instance.database;
@@ -271,9 +273,9 @@ class DatabaseHelper {
 
   // ---------------- Fingerprint matching ----------------
   Future<EmployeeModel?> getEmployeeByFingerprint(
-      String scannedTemplate, {
-        double threshold = 40.0,
-      }) async {
+    String scannedTemplate, {
+    double threshold = 40.0,
+  }) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query('employee');
     if (maps.isEmpty) return null;
@@ -292,8 +294,7 @@ class DatabaseHelper {
 
       if (storedTemplates.isNotEmpty) {
         try {
-          final verificationResult =
-          await FingerprintService.verifyFingerprint(
+          final verificationResult = await FingerprintService.verifyFingerprint(
             scannedTemplate: scannedTemplate,
             storedTemplates: storedTemplates,
           );
@@ -388,7 +389,6 @@ class DatabaseHelper {
   //   return int.tryParse(setting.value!) ?? defaultValue;
   // }
 
-
   // ---------------- Company Settings CRUD ----------------
   Future<int> insertCompanySetting({
     required String companyName,
@@ -397,17 +397,21 @@ class DatabaseHelper {
     String? user,
   }) async {
     final db = await instance.database;
-    return await db.insert('company_settings', {
-      'company_name': companyName,
-      'address': address,
-      'branch_id': branchId,
-      'user': user,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    return await db.insert(
+        'company_settings',
+        {
+          'company_name': companyName,
+          'address': address,
+          'branch_id': branchId,
+          'user': user,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<Map<String, dynamic>?> getFirstCompanySetting() async {
     final db = await instance.database;
-    final rows = await db.query('company_settings', orderBy: 'id ASC', limit: 1);
+    final rows =
+        await db.query('company_settings', orderBy: 'id ASC', limit: 1);
     return rows.isNotEmpty ? rows.first : null;
   }
 
@@ -416,7 +420,8 @@ class DatabaseHelper {
     return await db.query('company_settings', orderBy: 'id ASC');
   }
 
-  Future<int> updateCompanySetting(int id, {
+  Future<int> updateCompanySetting(
+    int id, {
     String? companyName,
     String? address,
     int? branchId,
@@ -430,14 +435,15 @@ class DatabaseHelper {
     if (user != null) updates['user'] = user;
 
     if (updates.isEmpty) return 0;
-    return await db.update('company_settings', updates, where: 'id = ?', whereArgs: [id]);
+    return await db
+        .update('company_settings', updates, where: 'id = ?', whereArgs: [id]);
   }
 
   Future<int> deleteCompanySetting(int id) async {
     final db = await instance.database;
-    return await db.delete('company_settings', where: 'id = ?', whereArgs: [id]);
+    return await db
+        .delete('company_settings', where: 'id = ?', whereArgs: [id]);
   }
-
 
   // ---------------- Close DB ----------------
   Future<void> close() async {

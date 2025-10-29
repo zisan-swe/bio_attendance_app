@@ -1,26 +1,52 @@
 import 'package:flutter/material.dart';
 import '../../db/setting_seeder.dart';
-import '../../db/attendance_seeder.dart'; // Make sure this is imported
 import 'company_settings_info.dart';
 import 'settings_list_page.dart';
 
-class SettingSeedingPage extends StatelessWidget {
+class SettingSeedingPage extends StatefulWidget {
   const SettingSeedingPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final seeder = SettingSeeder();
+  State<SettingSeedingPage> createState() => _SettingSeedingPageState();
+}
 
+class _SettingSeedingPageState extends State<SettingSeedingPage> {
+  final seeder = SettingSeeder();
+  bool _isSeeded = false; // Track whether seeding is done
+  bool _isLoading = false; // Optional: show loading state while seeding
+
+  Future<void> _seedSettings() async {
+    setState(() => _isLoading = true);
+
+    await seeder.seedDummySettings();
+
+    setState(() {
+      _isSeeded = true;
+      _isLoading = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("✅ Dummy settings seeded successfully!"),
+        behavior: SnackBarBehavior.floating,
+        showCloseIcon: true,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Setting Seeder Page"),
         centerTitle: true,
         elevation: 25,
         backgroundColor: Colors.blueGrey,
-        titleTextStyle: TextStyle(
-            fontSize: 25,
-            fontWeight: FontWeight.bold,
-           ),
+        titleTextStyle: const TextStyle(
+          fontSize: 25,
+          fontWeight: FontWeight.bold,
+        ),
       ),
       body: Center(
         child: Column(
@@ -28,18 +54,10 @@ class SettingSeedingPage extends StatelessWidget {
           children: [
             ElevatedButton.icon(
               icon: const Icon(Icons.storage),
-              label: const Text("Seed Settings"),
-              onPressed: () async {
-                await seeder.seedDummySettings();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("✅ Dummy settings seeded successfully!"),
-                    behavior: SnackBarBehavior.floating,
-                    showCloseIcon: true,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              },
+              label: _isLoading
+                  ? const Text("Seeding...")
+                  : Text(_isSeeded ? "Settings Seeded" : "Seed Settings"),
+              onPressed: _isSeeded || _isLoading ? null : _seedSettings,
             ),
 
             const SizedBox(height: 20),
@@ -68,20 +86,6 @@ class SettingSeedingPage extends StatelessWidget {
                 );
               },
             ),
-
-            const SizedBox(height: 20),
-            // ElevatedButton.icon(
-            //   icon: const Icon(Icons.fingerprint),
-            //   label: const Text("Seed Attendance"),
-            //   onPressed: () async {
-            //     await AttendanceSeeder.seedAttendance();
-            //     ScaffoldMessenger.of(context).showSnackBar(
-            //       const SnackBar(
-            //         content: Text("✅ Dummy attendance seeded successfully!"),
-            //       ),
-            //     );
-            //   },
-            // ),
           ],
         ),
       ),

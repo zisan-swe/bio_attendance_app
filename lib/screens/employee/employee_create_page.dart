@@ -99,7 +99,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                 onTap: () async {
                   Navigator.pop(context);
                   final pickedFile =
-                  await picker.pickImage(source: ImageSource.camera);
+                      await picker.pickImage(source: ImageSource.camera);
                   if (pickedFile != null) {
                     setState(() {
                       _profileImage = File(pickedFile.path);
@@ -113,7 +113,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                 onTap: () async {
                   Navigator.pop(context);
                   final pickedFile =
-                  await picker.pickImage(source: ImageSource.gallery);
+                      await picker.pickImage(source: ImageSource.gallery);
                   if (pickedFile != null) {
                     setState(() {
                       _profileImage = File(pickedFile.path);
@@ -143,9 +143,41 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     }
   }
 
+  // Future<void> _scanFinger(String fingerName) async {
+  //   try {
+  //     final tpl = await _fingerSvc.scanFingerprint();
+  //     setState(() {
+  //       fingerTemplates[fingerName] = tpl;
+  //     });
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(content: Text("✅ $fingerName captured")),
+  //     );
+  //   } catch (e) {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(content: Text("⚠️ $fingerName failed: $e")),
+  //     );
+  //   }
+  // }
+
   Future<void> _scanFinger(String fingerName) async {
     try {
       final tpl = await _fingerSvc.scanFingerprint();
+
+      // ✅ Check DB for duplicate before accepting this template
+      final existing = await DatabaseHelper.instance
+          .getEmployeeByFingerprint(tpl, threshold: 70.0);
+
+      if (existing != null && existing.id != widget.employee?.id) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "⚠️ This fingerprint is already registered to ${existing.name} (ID: ${existing.employeeNo}).",
+            ),
+          ),
+        );
+        return; // ❌ Do not store this template
+      }
+
       setState(() {
         fingerTemplates[fingerName] = tpl;
       });
@@ -159,14 +191,41 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     }
   }
 
+  Future<bool> _hasDuplicateFingerInDB() async {
+    for (final tpl in fingerTemplates.values) {
+      if (tpl.isEmpty) continue;
+
+      final existing = await DatabaseHelper.instance
+          .getEmployeeByFingerprint(tpl, threshold: 70.0);
+
+      if (existing != null && existing.id != widget.employee?.id) {
+        // Found a match in DB for someone else
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "⚠️ Duplicate fingerprint detected. Already registered to ${existing.name} (ID: ${existing.employeeNo}).",
+            ),
+          ),
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
   Future<void> _save() async {
     if (_formKey.currentState!.validate()) {
+      // ✅ Block save if any enrolled finger template matches an existing employee
+      if (await _hasDuplicateFingerInDB()) {
+        return; // ❌ Stop save
+      }
+
       final provider = Provider.of<EmployeeProvider>(context, listen: false);
       final dailyWages =
           double.tryParse(dailyWagesController.text.trim()) ?? 0.0;
 
       final setting =
-      await DatabaseHelper.instance.getSettingBySlug('company_id');
+          await DatabaseHelper.instance.getSettingBySlug('company_id');
       final companyId = int.tryParse(setting?.value ?? '') ?? 1;
 
       final employee = EmployeeModel(
@@ -219,11 +278,11 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
 
   /// 🔹 Common Input Field with optional red asterisk
   Widget _buildInputField(
-      String label,
-      TextEditingController controller,
-      IconData icon, {
-        bool isRequired = true,
-      }) {
+    String label,
+    TextEditingController controller,
+    IconData icon, {
+    bool isRequired = true,
+  }) {
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(
@@ -233,14 +292,14 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
             style: const TextStyle(color: Colors.black, fontSize: 16),
             children: isRequired
                 ? const [
-              TextSpan(
-                text: ' *',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ]
+                    TextSpan(
+                      text: ' *',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ]
                 : [],
           ),
         ),
@@ -291,7 +350,6 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
   //   );
   // }
 
-
   /// 🔹 Optional Phone field (not required)
   Widget _buildInputFieldPhone(
       String label, TextEditingController controller, IconData icon) {
@@ -319,10 +377,10 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
 
   /// 🔹 Date Field with optional red asterisk
   Widget _buildDateField(
-      String label,
-      TextEditingController controller, {
-        bool isRequired = true,
-      }) {
+    String label,
+    TextEditingController controller, {
+    bool isRequired = true,
+  }) {
     return TextFormField(
       controller: controller,
       readOnly: true,
@@ -334,14 +392,14 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
             style: const TextStyle(color: Colors.black, fontSize: 16),
             children: isRequired
                 ? const [
-              TextSpan(
-                text: ' *',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ]
+                    TextSpan(
+                      text: ' *',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ]
                 : [],
           ),
         ),
@@ -440,7 +498,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     return Scaffold(
       appBar: AppBar(
         title:
-        Text(widget.employee == null ? 'Create Employee' : 'Edit Employee'),
+            Text(widget.employee == null ? 'Create Employee' : 'Edit Employee'),
         backgroundColor: Colors.blueGrey,
       ),
       body: SingleChildScrollView(
@@ -465,7 +523,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                           : null,
                       child: _profileImage == null
                           ? const Icon(Icons.camera_alt,
-                          size: 40, color: Colors.white70)
+                              size: 40, color: Colors.white70)
                           : null,
                     ),
                   ),
@@ -476,15 +534,15 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                     runSpacing: 20,
                     spacing: 20,
                     children: [
-                      _buildInputField('Employee Name', nameController,
-                          Icons.person),
-                      _buildInputField('Employee Email', emailController,
-                          Icons.email,
+                      _buildInputField(
+                          'Employee Name', nameController, Icons.person),
+                      _buildInputField(
+                          'Employee Email', emailController, Icons.email,
                           isRequired: false),
-                      _buildInputField('Employee ID', codeController, Icons.code,
-                          isRequired: false),
-                      _buildInputField('Employee NID', nidController,
-                          Icons.badge,
+                      _buildInputField(
+                          'Employee ID', codeController, Icons.code),
+                      _buildInputField(
+                          'Employee NID', nidController, Icons.badge,
                           isRequired: false),
                       _buildInputField('Employee Daily Wages',
                           dailyWagesController, Icons.attach_money),
@@ -492,8 +550,8 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                           'Phone Number', phoneController, Icons.phone),
                       _buildInputField(
                           'Father\'s Name', fatherController, Icons.man),
-                      _buildInputField('Mother\'s Name', motherController,
-                          Icons.woman,
+                      _buildInputField(
+                          'Mother\'s Name', motherController, Icons.woman,
                           isRequired: false),
                       _buildDateField('Date of Birth', dobController,
                           isRequired: false),

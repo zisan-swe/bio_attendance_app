@@ -74,29 +74,65 @@ class ApiService {
   }
 
 
-  /// --- Fetch Employee / Labour List ---
+  /// --- Fetch Employee / Labour List (POST first, fallback to GET) ---
   static Future<List<EmployeeModel>> fetchEmployees({
     required String code,
     required int blockId,
+    int? page, // optional if your API supports pagination
   }) async {
-    final url = Uri.parse("$baseUrl/labour-list?code=$code&block_id=$blockId");
+    final postUrl = Uri.parse("$baseUrl/labour-list");
+    final headers = {"Content-Type": "application/json"};
+
+    // Preferred: POST with JSON body
+    final body = jsonEncode({
+      "code": code,
+      "block_id": blockId,
+      if (page != null) "page": page,
+    });
 
     try {
-      final response = await http.get(url);
+      // Try POST first
+      final postRes = await http.post(postUrl, headers: headers, body: body);
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final List<dynamic> employees = data['data'] ?? [];
-        return employees.map((e) => EmployeeModel.fromJson(e)).toList();
-      } else {
-        print("❌ Failed to fetch employees: ${response.statusCode}");
-        return [];
+      if (postRes.statusCode == 200) {
+        final decoded = jsonDecode(postRes.body);
+        final list = (decoded is Map<String, dynamic>)
+            ? (decoded["data"] ?? decoded["employees"] ?? decoded)
+            : decoded;
+
+        final items = (list as List)
+            .map((e) => EmployeeModel.fromJson(e as Map<String, dynamic>))
+            .toList();
+        return items;
       }
+
+      // Fallback to GET (legacy behavior with query params)
+      final getUrl =
+      Uri.parse("$baseUrl/labour-list?code=$code&block_id=$blockId${page != null ? '&page=$page' : ''}");
+      final getRes = await http.get(getUrl);
+
+      if (getRes.statusCode == 200) {
+        final decoded = jsonDecode(getRes.body);
+        final list = (decoded is Map<String, dynamic>)
+            ? (decoded["data"] ?? decoded["employees"] ?? decoded)
+            : decoded;
+
+        final items = (list as List)
+            .map((e) => EmployeeModel.fromJson(e as Map<String, dynamic>))
+            .toList();
+        return items;
+      }
+
+      // Non-200 responses
+      // (Keep logs similar to your project’s style)
+      print("❌ fetchEmployees failed: ${postRes.statusCode}/${postRes.body}");
+      return [];
     } catch (e) {
-      print("❌ Exception while fetching employees: $e");
+      print("❌ fetchEmployees exception: $e");
       return [];
     }
   }
+
 
 
   //// --- Fetch + Update finger data from API and sync (local + server)

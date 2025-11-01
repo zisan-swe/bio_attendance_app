@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../db/setting_seeder.dart';
 import 'company_settings_info.dart';
 import 'settings_list_page.dart';
@@ -12,13 +13,49 @@ class SettingSeedingPage extends StatefulWidget {
 
 class _SettingSeedingPageState extends State<SettingSeedingPage> {
   final seeder = SettingSeeder();
-  bool _isSeeded = false; // Track whether seeding is done
-  bool _isLoading = false; // Optional: show loading state while seeding
+  bool _isSeeded = false;
+  bool _isLoading = false;
 
-  Future<void> _seedSettings() async {
+  @override
+  void initState() {
+    super.initState();
+    _checkAndSeedAutomatically();
+  }
+
+  Future<void> _checkAndSeedAutomatically() async {
+    final prefs = await SharedPreferences.getInstance();
+    final alreadySeeded = prefs.getBool('settings_seeded') ?? false;
+
+    if (!alreadySeeded) {
+      // Automatically seed on first install
+      setState(() => _isLoading = true);
+      await seeder.seedDummySettings();
+
+      await prefs.setBool('settings_seeded', true);
+
+      setState(() {
+        _isSeeded = true;
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("✅ Settings seeded automatically on first launch!"),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } else {
+      setState(() => _isSeeded = true);
+    }
+  }
+
+  Future<void> _manualSeed() async {
     setState(() => _isLoading = true);
-
     await seeder.seedDummySettings();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('settings_seeded', true);
 
     setState(() {
       _isSeeded = true;
@@ -57,9 +94,8 @@ class _SettingSeedingPageState extends State<SettingSeedingPage> {
               label: _isLoading
                   ? const Text("Seeding...")
                   : Text(_isSeeded ? "Settings Seeded" : "Seed Settings"),
-              onPressed: _isSeeded || _isLoading ? null : _seedSettings,
+              onPressed: _isSeeded || _isLoading ? null : _manualSeed,
             ),
-
             const SizedBox(height: 20),
             ElevatedButton.icon(
               icon: const Icon(Icons.settings_display_sharp),
@@ -67,9 +103,7 @@ class _SettingSeedingPageState extends State<SettingSeedingPage> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const SettingsListPage(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const SettingsListPage()),
                 );
               },
             ),
@@ -80,9 +114,7 @@ class _SettingSeedingPageState extends State<SettingSeedingPage> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const CompanySettingsInfoPage(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const CompanySettingsInfoPage()),
                 );
               },
             ),

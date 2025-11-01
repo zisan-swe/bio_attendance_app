@@ -1,9 +1,10 @@
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
-import '../models/employee_model.dart';
-import '../models/attendance_model.dart';
-import '../models/setting_model.dart';
+import 'dart:convert'; // ✅ for JSON lists in finger_info fields
 import 'dart:developer' as dev;
+import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+import '../models/attendance_model.dart';
+import '../models/employee_model.dart';
+import '../models/setting_model.dart';
 import '../../services/fingerprint_service.dart';
 
 class DatabaseHelper {
@@ -96,69 +97,55 @@ class DatabaseHelper {
         slug TEXT UNIQUE
       )
     ''');
+
     // Company Settings table
     await db.execute('''
-    CREATE TABLE company_settings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      company_name TEXT,
-      address TEXT,
-      branch_id INTEGER,
-      user TEXT
-    )
-  ''');
+      CREATE TABLE company_settings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_name TEXT,
+        address TEXT,
+        branch_id INTEGER,
+        user TEXT
+      )
+    ''');
   }
 
   /// Runs when version number increases
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    dev.log('🛠 Upgrading DB from $oldVersion to $newVersion',
-        name: 'DatabaseHelper');
+    dev.log('🛠 Upgrading DB from $oldVersion to $newVersion', name: 'DatabaseHelper');
 
     // Add company_settings table when upgrading from versions <16
     if (oldVersion < 16) {
-      // Create only if it doesn't already exist (defensive)
       await db.execute('''
-    CREATE TABLE IF NOT EXISTS company_settings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      company_name TEXT,
-      address TEXT,
-      branch_id INTEGER,
-      user TEXT
-    )
-  ''');
+        CREATE TABLE IF NOT EXISTS company_settings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          company_name TEXT,
+          address TEXT,
+          branch_id INTEGER,
+          user TEXT
+        )
+      ''');
       dev.log('✅ Created company_settings table', name: 'DatabaseHelper');
     }
 
-    // Add 'finger_info11' column to employee table as an example if upgrading from <12
+    // Add 'company_id' to employee table if upgrading from <12
     if (oldVersion < 12) {
       final empColumns = await db.rawQuery("PRAGMA table_info(employee)");
-      final empCols = empColumns
-          .map((c) => c['name'] as String?)
-          .whereType<String>()
-          .toList();
+      final empCols = empColumns.map((c) => c['name'] as String?).whereType<String>().toList();
 
       if (!empCols.contains('company_id')) {
-        await db.execute(
-            'ALTER TABLE employee ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1');
+        await db.execute('ALTER TABLE employee ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1');
         dev.log('✅ Added company_id to employee table', name: 'DatabaseHelper');
       }
-
-      // Example: Adding more columns if needed
-      // if (!empCols.contains('finger_info11')) {
-      //   await db.execute('ALTER TABLE employee ADD COLUMN finger_info11 TEXT');
-      // }
     }
 
     // Attendance table: Add 'status' column if missing
     if (oldVersion < 12) {
       final attColumns = await db.rawQuery("PRAGMA table_info(attendance)");
-      final attCols = attColumns
-          .map((c) => c['name'] as String?)
-          .whereType<String>()
-          .toList();
+      final attCols = attColumns.map((c) => c['name'] as String?).whereType<String>().toList();
 
       if (!attCols.contains('status')) {
-        await db.execute(
-            "ALTER TABLE attendance ADD COLUMN status TEXT NOT NULL DEFAULT 'Regular'");
+        await db.execute("ALTER TABLE attendance ADD COLUMN status TEXT NOT NULL DEFAULT 'Regular'");
         dev.log('✅ Added status to attendance table', name: 'DatabaseHelper');
       }
     }
@@ -167,17 +154,17 @@ class DatabaseHelper {
     if (oldVersion < 11) {
       await db.execute('ALTER TABLE settings RENAME TO settings_old');
       await db.execute('''
-      CREATE TABLE settings (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        value TEXT,
-        slug TEXT UNIQUE
-      )
-    ''');
+        CREATE TABLE settings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          value TEXT,
+          slug TEXT UNIQUE
+        )
+      ''');
       await db.execute('''
-      INSERT INTO settings (id, name, value, slug)
-      SELECT id, company_name, company_value, slug FROM settings_old
-    ''');
+        INSERT INTO settings (id, name, value, slug)
+        SELECT id, company_name, company_value, slug FROM settings_old
+      ''');
       await db.execute('DROP TABLE settings_old');
     }
   }
@@ -197,10 +184,10 @@ class DatabaseHelper {
 
     final result = employeeType != null
         ? await db.query(
-            'employee',
-            where: 'employee_type = ?',
-            whereArgs: [employeeType],
-          )
+      'employee',
+      where: 'employee_type = ?',
+      whereArgs: [employeeType],
+    )
         : await db.query('employee');
 
     return result.map((e) => EmployeeModel.fromMap(e)).toList();
@@ -242,16 +229,15 @@ class DatabaseHelper {
     return await db.insert(
       'attendance',
       attendance.toMap(),
-      conflictAlgorithm:
-          ConflictAlgorithm.abort, // ✅ নতুন row add করবে, পুরনো delete করবে না
+      conflictAlgorithm: ConflictAlgorithm.abort, // ✅ নতুন row add করবে, পুরনো delete করবে না
     );
   }
 
   Future<List<AttendanceModel>> getAllAttendance() async {
     final db = await instance.database;
     final result = await db.query(
-      'attendance', // direct table name
-      orderBy: 'create_at ASC', // oldest → latest
+      'attendance',
+      orderBy: 'create_at ASC',
     );
     return result.map((e) => AttendanceModel.fromMap(e)).toList();
   }
@@ -271,49 +257,69 @@ class DatabaseHelper {
     );
   }
 
-  // ---------------- Fingerprint matching ----------------
+  // ---------------- Fingerprint matching (supports JSON lists) ----------------
+  /// Looks for a match of [scannedTemplate] in any employee's stored templates.
+  /// Each finger_infoX can be:
+  ///   - a plain single template string
+  ///   - a JSON array string: ["tpl1", "tpl2", ...]
   Future<EmployeeModel?> getEmployeeByFingerprint(
-    String scannedTemplate, {
-    double threshold = 40.0,
-  }) async {
+      String scannedTemplate, {
+        double threshold = 40.0,
+      }) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query('employee');
     if (maps.isEmpty) return null;
 
-    for (var map in maps) {
-      EmployeeModel employee = EmployeeModel.fromMap(map);
+    for (final map in maps) {
+      final employee = EmployeeModel.fromMap(map);
 
-      // Collect all finger_info templates
+      // Collect all stored templates across finger_info1..10
       final storedTemplates = <String>[];
+
       for (int i = 1; i <= 10; i++) {
-        String? storedTemplate = map['finger_info$i'] as String?;
-        if (storedTemplate != null && storedTemplate.isNotEmpty) {
-          storedTemplates.add(storedTemplate);
+        final raw = map['finger_info$i'] as String?;
+        if (raw == null || raw.isEmpty) continue;
+
+        // If JSON list -> add all; else add single
+        try {
+          final decoded = jsonDecode(raw);
+          if (decoded is List) {
+            for (final e in decoded) {
+              final s = (e ?? '').toString();
+              if (s.isNotEmpty) storedTemplates.add(s);
+            }
+          } else {
+            // not a list (string/other) — treat as single
+            storedTemplates.add(raw);
+          }
+        } catch (_) {
+          // not JSON — treat as single
+          storedTemplates.add(raw);
         }
       }
 
-      if (storedTemplates.isNotEmpty) {
-        try {
-          final verificationResult = await FingerprintService.verifyFingerprint(
-            scannedTemplate: scannedTemplate,
-            storedTemplates: storedTemplates,
-          );
+      if (storedTemplates.isEmpty) continue;
 
-          if (verificationResult['matched'] == true &&
-              (verificationResult['score'] ?? 0) >= threshold) {
-            dev.log(
-              '✅ Matched fingerprint for ${employee.name} with score: ${verificationResult['score']}',
-              name: 'DatabaseHelper',
-            );
-            return employee;
-          }
-        } catch (e) {
+      try {
+        final verificationResult = await FingerprintService.verifyFingerprint(
+          scannedTemplate: scannedTemplate,
+          storedTemplates: storedTemplates,
+        );
+
+        if (verificationResult['matched'] == true &&
+            (verificationResult['score'] ?? 0) >= threshold) {
           dev.log(
-            '❌ Verification error for ${employee.name}: $e',
+            '✅ Matched fingerprint for ${employee.name} with score: ${verificationResult['score']}',
             name: 'DatabaseHelper',
           );
-          continue;
+          return employee;
         }
+      } catch (e) {
+        dev.log(
+          '❌ Verification error for ${employee.name}: $e',
+          name: 'DatabaseHelper',
+        );
+        // continue to next employee
       }
     }
 
@@ -367,8 +373,7 @@ class DatabaseHelper {
     );
   }
 
-  // database_helper.dart
-
+  /// First settings row (if any)
   Future<SettingModel?> getFirstSetting() async {
     final db = await instance.database;
     final maps = await db.query(
@@ -383,12 +388,6 @@ class DatabaseHelper {
     return null;
   }
 
-  // Future<int> getSettingInt(String slug, {int defaultValue = 0}) async {
-  //   final setting = await DatabaseHelper.instance.getSettingBySlug(slug);
-  //   if (setting == null || setting.value == null) return defaultValue;
-  //   return int.tryParse(setting.value!) ?? defaultValue;
-  // }
-
   // ---------------- Company Settings CRUD ----------------
   Future<int> insertCompanySetting({
     required String companyName,
@@ -398,20 +397,20 @@ class DatabaseHelper {
   }) async {
     final db = await instance.database;
     return await db.insert(
-        'company_settings',
-        {
-          'company_name': companyName,
-          'address': address,
-          'branch_id': branchId,
-          'user': user,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace);
+      'company_settings',
+      {
+        'company_name': companyName,
+        'address': address,
+        'branch_id': branchId,
+        'user': user,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<Map<String, dynamic>?> getFirstCompanySetting() async {
     final db = await instance.database;
-    final rows =
-        await db.query('company_settings', orderBy: 'id ASC', limit: 1);
+    final rows = await db.query('company_settings', orderBy: 'id ASC', limit: 1);
     return rows.isNotEmpty ? rows.first : null;
   }
 
@@ -421,12 +420,12 @@ class DatabaseHelper {
   }
 
   Future<int> updateCompanySetting(
-    int id, {
-    String? companyName,
-    String? address,
-    int? branchId,
-    String? user,
-  }) async {
+      int id, {
+        String? companyName,
+        String? address,
+        int? branchId,
+        String? user,
+      }) async {
     final db = await instance.database;
     final updates = <String, Object?>{};
     if (companyName != null) updates['company_name'] = companyName;
@@ -435,14 +434,12 @@ class DatabaseHelper {
     if (user != null) updates['user'] = user;
 
     if (updates.isEmpty) return 0;
-    return await db
-        .update('company_settings', updates, where: 'id = ?', whereArgs: [id]);
+    return await db.update('company_settings', updates, where: 'id = ?', whereArgs: [id]);
   }
 
   Future<int> deleteCompanySetting(int id) async {
     final db = await instance.database;
-    return await db
-        .delete('company_settings', where: 'id = ?', whereArgs: [id]);
+    return await db.delete('company_settings', where: 'id = ?', whereArgs: [id]);
   }
 
   // ---------------- Close DB ----------------

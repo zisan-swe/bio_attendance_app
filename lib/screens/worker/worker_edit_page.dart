@@ -163,14 +163,13 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
 
   Future<void> _enrollFinger(String fingerName) async {
     const totalSamples = 5;
-    int step = (fingerTemplates[fingerName] ?? const []).length
-        .clamp(0, totalSamples);
+    int step =
+    (fingerTemplates[fingerName] ?? const []).length.clamp(0, totalSamples);
     bool cancelled = false;
     bool _autoStarted = false;
 
     final messengerKey = GlobalKey<ScaffoldMessengerState>();
-    String statusText =
-        'Place your ${fingerName.toLowerCase()} on the sensor';
+    String statusText = 'Place your ${fingerName.toLowerCase()} on the sensor';
     DateTime nextSnackAllowed = DateTime.now(); // throttle SnackBars
 
     await showDialog(
@@ -298,8 +297,8 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
                             const SizedBox(height: 8),
                             Text(
                               statusText,
-                              style:
-                              const TextStyle(color: Colors.yellowAccent),
+                              style: const TextStyle(
+                                  color: Colors.yellowAccent),
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 28),
@@ -328,8 +327,8 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
                             ),
                             const SizedBox(height: 10),
                             Text('Sample $step/5',
-                                style: const TextStyle(
-                                    color: Colors.white70)),
+                                style:
+                                const TextStyle(color: Colors.white70)),
                           ],
                         ),
                         const SizedBox(height: 24),
@@ -415,7 +414,8 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
       fingerInfo10: enc('Right Little'),
     );
 
-    dev.log('Update finger samples — LThumb: ${fingerTemplates['Left Thumb']?.length}, RThumb: ${fingerTemplates['Right Thumb']?.length}',
+    dev.log(
+        'Update finger samples — LThumb: ${fingerTemplates['Left Thumb']?.length}, RThumb: ${fingerTemplates['Right Thumb']?.length}',
         name: 'WorkerEditPage');
 
     await provider.updateEmployee(updated);
@@ -425,7 +425,8 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
       await ApiService.fetchAndUpdateFingers(
         employeeNo: updated.employeeNo,
         existingEmployee: updated,
-        provider: provider,);
+        provider: provider,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ Worker & Finger Data Updated')),
@@ -442,8 +443,12 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
   // -------------------- UI helpers --------------------
 
   Widget _buildField(
-      String label, TextEditingController controller, IconData icon,
-      {bool isRequired = true, TextInputType? type}) {
+      String label,
+      TextEditingController controller,
+      IconData icon, {
+        bool isRequired = true,
+        TextInputType? type,
+      }) {
     return TextFormField(
       controller: controller,
       keyboardType: type ?? TextInputType.text,
@@ -458,8 +463,13 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
     );
   }
 
+  /// ✅ FIXED: add isRequired
   Widget _buildFieldPhone(
-      String label, TextEditingController controller, IconData icon) {
+      String label,
+      TextEditingController controller,
+      IconData icon, {
+        bool isRequired = true,
+      }) {
     return TextFormField(
       controller: controller,
       keyboardType: TextInputType.phone,
@@ -471,7 +481,11 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
         counterText: '',
       ),
       validator: (value) {
-        if (value == null || value.trim().isEmpty) return 'Enter $label';
+        // Allow empty if not required
+        if (!isRequired) return null;
+        if (value == null || value.trim().isEmpty) {
+          return 'Enter $label';
+        }
         if (!RegExp(r'^\d{11}$').hasMatch(value)) {
           return 'Phone number must be exactly 11 digits';
         }
@@ -480,7 +494,12 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
     );
   }
 
-  Widget _buildDateField(String label, TextEditingController controller) {
+  /// ✅ FIXED: add isRequired
+  Widget _buildDateField(
+      String label,
+      TextEditingController controller, {
+        bool isRequired = true,
+      }) {
     return TextFormField(
       controller: controller,
       readOnly: true,
@@ -490,8 +509,10 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
         prefixIcon: const Icon(Icons.calendar_month),
         border: const OutlineInputBorder(),
       ),
-      validator: (val) =>
-      val == null || val.trim().isEmpty ? 'Select $label' : null,
+      validator: (val) {
+        if (!isRequired) return null;
+        return val == null || val.trim().isEmpty ? 'Select $label' : null;
+      },
     );
   }
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:intl/intl.dart';
-
+import 'dart:convert';
 import '../db/database_helper.dart';
 import '../models/attendance_model.dart';
 import '../models/employee_model.dart';
@@ -191,14 +191,62 @@ class AttendanceProvider with ChangeNotifier {
   }
 
   /// Retrieve enrolled fingerprints for an employee
-  Future<Map<String, String>> getEnrolledFingerprints({required String employeeNo}) async {
+  // Future<Map<String, String>> getEnrolledFingerprints({required String employeeNo}) async {
+  //   try {
+  //     final db = await dbHelper.database;
+  //     final result = await db.query(
+  //       _employeeTable,
+  //       columns: [
+  //         'finger_info1', 'finger_info2', 'finger_info3', 'finger_info4', 'finger_info5',
+  //         'finger_info6', 'finger_info7', 'finger_info8', 'finger_info9', 'finger_info10',
+  //       ],
+  //       where: 'employee_no = ?',
+  //       whereArgs: [employeeNo],
+  //       limit: 1,
+  //     );
+  //
+  //     if (result.isEmpty) return {};
+  //
+  //     final map = result.first;
+  //     final fingerprints = <String, String>{};
+  //     const fingerMap = {
+  //       'finger_info1': 'Left Thumb',
+  //       'finger_info2': 'Right Thumb',
+  //       'finger_info3': 'Left Index',
+  //       'finger_info4': 'Right Index',
+  //       'finger_info5': 'Left Middle',
+  //       'finger_info6': 'Right Middle',
+  //       'finger_info7': 'Left Ring',
+  //       'finger_info8': 'Right Ring',
+  //       'finger_info9': 'Left Little',
+  //       'finger_info10': 'Right Little',
+  //     };
+  //
+  //     fingerMap.forEach((key, value) {
+  //       final template = map[key] as String?;
+  //       if (template != null && template.isNotEmpty) {
+  //         fingerprints[value] = template;
+  //       }
+  //     });
+  //
+  //     return fingerprints;
+  //   } catch (e, stack) {
+  //     debugPrint('❌ Error fetching enrolled fingerprints: $e\n$stack');
+  //     return {};
+  //   }
+  // }
+
+
+  Future<Map<String, List<String>>> getEnrolledFingerprints({
+    required String employeeNo,
+  }) async {
     try {
       final db = await dbHelper.database;
       final result = await db.query(
         _employeeTable,
         columns: [
-          'finger_info1', 'finger_info2', 'finger_info3', 'finger_info4', 'finger_info5',
-          'finger_info6', 'finger_info7', 'finger_info8', 'finger_info9', 'finger_info10',
+          'finger_info1','finger_info2','finger_info3','finger_info4','finger_info5',
+          'finger_info6','finger_info7','finger_info8','finger_info9','finger_info10',
         ],
         where: 'employee_no = ?',
         whereArgs: [employeeNo],
@@ -207,35 +255,41 @@ class AttendanceProvider with ChangeNotifier {
 
       if (result.isEmpty) return {};
 
-      final map = result.first;
-      final fingerprints = <String, String>{};
-      const fingerMap = {
-        'finger_info1': 'Left Thumb',
-        'finger_info2': 'Right Thumb',
-        'finger_info3': 'Left Index',
-        'finger_info4': 'Right Index',
-        'finger_info5': 'Left Middle',
-        'finger_info6': 'Right Middle',
-        'finger_info7': 'Left Ring',
-        'finger_info8': 'Right Ring',
-        'finger_info9': 'Left Little',
-        'finger_info10': 'Right Little',
-      };
-
-      fingerMap.forEach((key, value) {
-        final template = map[key] as String?;
-        if (template != null && template.isNotEmpty) {
-          fingerprints[value] = template;
+      List<String> _decode(dynamic raw) {
+        if (raw == null) return const [];
+        final s = raw.toString();
+        if (s.isEmpty) return const [];
+        try {
+          final j = jsonDecode(s);
+          if (j is List) {
+            return j.map((e) => (e ?? '').toString())
+                .where((e) => e.isNotEmpty)
+                .toList();
+          }
+        } catch (_) {
+          return [s];
         }
-      });
+        return const [];
+      }
 
-      return fingerprints;
+      final map = result.first;
+      return {
+        'Left Thumb':  _decode(map['finger_info1']),
+        'Left Index':  _decode(map['finger_info2']),
+        'Left Middle': _decode(map['finger_info3']),
+        'Left Ring':   _decode(map['finger_info4']),
+        'Left Little': _decode(map['finger_info5']),
+        'Right Thumb': _decode(map['finger_info6']),
+        'Right Index': _decode(map['finger_info7']),
+        'Right Middle':_decode(map['finger_info8']),
+        'Right Ring':  _decode(map['finger_info9']),
+        'Right Little':_decode(map['finger_info10']),
+      };
     } catch (e, stack) {
       debugPrint('❌ Error fetching enrolled fingerprints: $e\n$stack');
       return {};
     }
   }
-
   /// Helper to get an employee by fingerprint
   Future<EmployeeModel?> getEmployeeByFingerprint(String scannedTemplate) async {
     try {

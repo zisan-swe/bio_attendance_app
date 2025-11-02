@@ -262,6 +262,73 @@ class DatabaseHelper {
   /// Each finger_infoX can be:
   ///   - a plain single template string
   ///   - a JSON array string: ["tpl1", "tpl2", ...]
+
+  // Future<EmployeeModel?> getEmployeeByFingerprint(
+  //     String scannedTemplate, {
+  //       double threshold = 40.0,
+  //     }) async {
+  //   final db = await database;
+  //   final List<Map<String, dynamic>> maps = await db.query('employee');
+  //   if (maps.isEmpty) return null;
+  //
+  //   for (final map in maps) {
+  //     final employee = EmployeeModel.fromMap(map);
+  //
+  //     // Collect all stored templates across finger_info1..10
+  //     final storedTemplates = <String>[];
+  //
+  //     for (int i = 1; i <= 10; i++) {
+  //       final raw = map['finger_info$i'] as String?;
+  //       if (raw == null || raw.isEmpty) continue;
+  //
+  //       // If JSON list -> add all; else add single
+  //       try {
+  //         final decoded = jsonDecode(raw);
+  //         if (decoded is List) {
+  //           for (final e in decoded) {
+  //             final s = (e ?? '').toString();
+  //             if (s.isNotEmpty) storedTemplates.add(s);
+  //           }
+  //         } else {
+  //           // not a list (string/other) — treat as single
+  //           storedTemplates.add(raw);
+  //         }
+  //       } catch (_) {
+  //         // not JSON — treat as single
+  //         storedTemplates.add(raw);
+  //       }
+  //     }
+  //
+  //     if (storedTemplates.isEmpty) continue;
+  //
+  //     try {
+  //       final verificationResult = await FingerprintService.verifyFingerprint(
+  //         scannedTemplate: scannedTemplate,
+  //         storedTemplates: storedTemplates,
+  //       );
+  //
+  //       if (verificationResult['matched'] == true &&
+  //           (verificationResult['score'] ?? 0) >= threshold) {
+  //         dev.log(
+  //           '✅ Matched fingerprint for ${employee.name} with score: ${verificationResult['score']}',
+  //           name: 'DatabaseHelper',
+  //         );
+  //         return employee;
+  //       }
+  //     } catch (e) {
+  //       dev.log(
+  //         '❌ Verification error for ${employee.name}: $e',
+  //         name: 'DatabaseHelper',
+  //       );
+  //       // continue to next employee
+  //     }
+  //   }
+  //
+  //   dev.log('⚠️ No fingerprint match found', name: 'DatabaseHelper');
+  //   return null;
+  // }
+
+
   Future<EmployeeModel?> getEmployeeByFingerprint(
       String scannedTemplate, {
         double threshold = 40.0,
@@ -270,32 +337,32 @@ class DatabaseHelper {
     final List<Map<String, dynamic>> maps = await db.query('employee');
     if (maps.isEmpty) return null;
 
-    for (final map in maps) {
+    // helper: decode one finger_info column to List<String>
+    List<String> _decodeSamples(dynamic raw) {
+      if (raw == null) return const [];
+      final s = raw.toString();
+      if (s.isEmpty) return const [];
+      try {
+        final j = jsonDecode(s);
+        if (j is List) {
+          return j.map((e) => (e ?? '').toString())
+              .where((e) => e.isNotEmpty)
+              .toList();
+        }
+      } catch (_) {
+        // legacy single-string template
+        return [s];
+      }
+      return const [];
+    }
+
+    for (var map in maps) {
       final employee = EmployeeModel.fromMap(map);
 
-      // Collect all stored templates across finger_info1..10
+      // collect ALL samples from finger_info1..10
       final storedTemplates = <String>[];
-
       for (int i = 1; i <= 10; i++) {
-        final raw = map['finger_info$i'] as String?;
-        if (raw == null || raw.isEmpty) continue;
-
-        // If JSON list -> add all; else add single
-        try {
-          final decoded = jsonDecode(raw);
-          if (decoded is List) {
-            for (final e in decoded) {
-              final s = (e ?? '').toString();
-              if (s.isNotEmpty) storedTemplates.add(s);
-            }
-          } else {
-            // not a list (string/other) — treat as single
-            storedTemplates.add(raw);
-          }
-        } catch (_) {
-          // not JSON — treat as single
-          storedTemplates.add(raw);
-        }
+        storedTemplates.addAll(_decodeSamples(map['finger_info$i']));
       }
 
       if (storedTemplates.isEmpty) continue;
@@ -308,18 +375,15 @@ class DatabaseHelper {
 
         if (verificationResult['matched'] == true &&
             (verificationResult['score'] ?? 0) >= threshold) {
-          dev.log(
-            '✅ Matched fingerprint for ${employee.name} with score: ${verificationResult['score']}',
-            name: 'DatabaseHelper',
-          );
+          dev.log('✅ Matched fingerprint for ${employee.name} '
+              'with score: ${verificationResult['score']}',
+              name: 'DatabaseHelper');
           return employee;
         }
       } catch (e) {
-        dev.log(
-          '❌ Verification error for ${employee.name}: $e',
-          name: 'DatabaseHelper',
-        );
-        // continue to next employee
+        dev.log('❌ Verification error for ${employee.name}: $e',
+            name: 'DatabaseHelper');
+        continue;
       }
     }
 

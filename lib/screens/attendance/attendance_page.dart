@@ -59,6 +59,70 @@ class _AttendancePageState extends State<AttendancePage> {
     });
   }
 
+  // Future<void> _startFingerprintScan() async {
+  //   if (isScanning) return;
+  //   setState(() => isScanning = true);
+  //
+  //   final fingerprintService = FingerprintService();
+  //   String? scannedTemplate;
+  //
+  //   try {
+  //     scannedTemplate = await fingerprintService.scanFingerprint();
+  //     debugPrint("Scanned Template: $scannedTemplate");
+  //     if (scannedTemplate == null || scannedTemplate.isEmpty) {
+  //       _showSnack("❌ Invalid or empty fingerprint scan.", isError: true);
+  //       setState(() => isScanning = false);
+  //       return;
+  //     }
+  //   } on FingerprintException catch (e) {
+  //     debugPrint("Scan Error: ${e.code} - ${e.message}");
+  //     _showSnack("❌ Finger scan failed: ${e.message}", isError: true);
+  //     setState(() => isScanning = false);
+  //     return;
+  //   } catch (e) {
+  //     debugPrint("Scan Error: $e");
+  //     _showSnack("❌ Finger scan failed: $e", isError: true);
+  //     setState(() => isScanning = false);
+  //     return;
+  //   }
+  //
+  //   final attendanceProvider = context.read<AttendanceProvider>();
+  //   EmployeeModel? employee;
+  //   try {
+  //     employee = await attendanceProvider.getEmployeeByFingerprint(scannedTemplate);
+  //     debugPrint("Employee Found: ${employee?.name ?? 'None'}");
+  //     if (employee == null) {
+  //       _showSnack("❌ No matching employee found.", isError: true);
+  //       setState(() => isScanning = false);
+  //       return;
+  //     }
+  //   } catch (e) {
+  //     debugPrint("Match Error: $e");
+  //     _showSnack("❌ Error matching employee: $e", isError: true);
+  //     setState(() => isScanning = false);
+  //     return;
+  //   }
+  //
+  //   final selectedFinger = fingerScanStatus.entries.firstWhere(
+  //         (e) => e.value,
+  //     orElse: () => MapEntry('Left Thumb', true),
+  //   ).key;
+  //
+  //   final storedTemplate =
+  //       employee.fingerprints[selectedFinger] ?? employee.fingerInfo1;
+  //   debugPrint("Stored Template ($selectedFinger): $storedTemplate");
+  //   if (storedTemplate == null || storedTemplate.isEmpty) {
+  //     _showSnack("❌ No stored template for $selectedFinger.", isError: true);
+  //     setState(() => isScanning = false);
+  //     return;
+  //   }
+  //
+  //   await _saveAndRedirect(employee, selectedFinger);
+  // }
+
+
+  // In E:\Android\bio_attendance_app\lib\screens\attendance\attendance_page.dart
+
   Future<void> _startFingerprintScan() async {
     if (isScanning) return;
     setState(() => isScanning = true);
@@ -68,54 +132,38 @@ class _AttendancePageState extends State<AttendancePage> {
 
     try {
       scannedTemplate = await fingerprintService.scanFingerprint();
-      debugPrint("Scanned Template: $scannedTemplate");
       if (scannedTemplate == null || scannedTemplate.isEmpty) {
         _showSnack("❌ Invalid or empty fingerprint scan.", isError: true);
         setState(() => isScanning = false);
         return;
       }
-    } on FingerprintException catch (e) {
-      debugPrint("Scan Error: ${e.code} - ${e.message}");
-      _showSnack("❌ Finger scan failed: ${e.message}", isError: true);
-      setState(() => isScanning = false);
-      return;
     } catch (e) {
-      debugPrint("Scan Error: $e");
       _showSnack("❌ Finger scan failed: $e", isError: true);
       setState(() => isScanning = false);
       return;
     }
 
+    // Identify employee by scannedTemplate (uses DB helper that now decodes arrays)
     final attendanceProvider = context.read<AttendanceProvider>();
     EmployeeModel? employee;
     try {
       employee = await attendanceProvider.getEmployeeByFingerprint(scannedTemplate);
-      debugPrint("Employee Found: ${employee?.name ?? 'None'}");
       if (employee == null) {
         _showSnack("❌ No matching employee found.", isError: true);
         setState(() => isScanning = false);
         return;
       }
     } catch (e) {
-      debugPrint("Match Error: $e");
       _showSnack("❌ Error matching employee: $e", isError: true);
       setState(() => isScanning = false);
       return;
     }
 
+    // Use the finger the user tapped as the label to save
     final selectedFinger = fingerScanStatus.entries.firstWhere(
           (e) => e.value,
-      orElse: () => MapEntry('Left Thumb', true),
+      orElse: () => const MapEntry('Left Thumb', true),
     ).key;
-
-    final storedTemplate =
-        employee.fingerprints[selectedFinger] ?? employee.fingerInfo1;
-    debugPrint("Stored Template ($selectedFinger): $storedTemplate");
-    if (storedTemplate == null || storedTemplate.isEmpty) {
-      _showSnack("❌ No stored template for $selectedFinger.", isError: true);
-      setState(() => isScanning = false);
-      return;
-    }
 
     await _saveAndRedirect(employee, selectedFinger);
   }
@@ -203,13 +251,13 @@ class _AttendancePageState extends State<AttendancePage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 40),
-              const Icon(Icons.fingerprint, size: 80, color: Colors.blueGrey),
+              const SizedBox(height: 0),
+              const Icon(Icons.fingerprint, size: 70, color: Colors.blueGrey),
               const SizedBox(height: 10),
               Text(
                 'Fingerprint Attendance',
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: Colors.blueGrey[800],
                 ),
@@ -219,7 +267,7 @@ class _AttendancePageState extends State<AttendancePage> {
                 'Quick and secure check-ins',
                 style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 30),
               Text(
                 formattedDate,
                 style: const TextStyle(

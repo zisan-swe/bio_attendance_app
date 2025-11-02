@@ -69,7 +69,8 @@ class ApiService {
         return responseBody['message'] ?? "Failed to sync attendance.";
       }
     } catch (e) {
-      return "Exception occurred: $e";
+      return "Connection lost. Please check your internet connection.";
+      // return "Exception occurred: $e";
     }
   }
 

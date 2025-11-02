@@ -237,7 +237,7 @@ class DatabaseHelper {
     final db = await instance.database;
     final result = await db.query(
       'attendance',
-      orderBy: 'create_at ASC',
+      orderBy: 'create_at DESC',
     );
     return result.map((e) => AttendanceModel.fromMap(e)).toList();
   }

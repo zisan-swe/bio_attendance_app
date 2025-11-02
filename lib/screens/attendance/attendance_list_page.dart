@@ -35,17 +35,56 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
     });
   }
 
+  // Future<void> _refreshData({String? searchQuery}) async {
+  //   final attendanceProvider =
+  //   Provider.of<AttendanceProvider>(context, listen: false);
+  //   final employeeProvider =
+  //   Provider.of<EmployeeProvider>(context, listen: false);
+  //
+  //   // Fetch all attendance records
+  //   List<AttendanceModel> attendanceList =
+  //   await attendanceProvider.getAllAttendance();
+  //
+  //   // Apply live search filter
+  //   if (searchQuery != null && searchQuery.isNotEmpty) {
+  //     attendanceList = attendanceList
+  //         .where((a) =>
+  //         a.employeeNo.toLowerCase().contains(searchQuery.toLowerCase()))
+  //         .toList();
+  //   }
+  //
+  //   // Apply synced filter
+  //   if (_showSyncedOnly) {
+  //     attendanceList = attendanceList.where((a) => a.synced == 1).toList();
+  //   }
+  //
+  //   // Employee mapping
+  //   final Map<String, EmployeeModel?> employeeMap = {};
+  //   for (var attendance in attendanceList) {
+  //     if (!employeeMap.containsKey(attendance.employeeNo)) {
+  //       final employee =
+  //       await employeeProvider.getEmployeeByNumber(attendance.employeeNo);
+  //       employeeMap[attendance.employeeNo] = employee;
+  //     }
+  //   }
+  //
+  //   setState(() {
+  //     _attendanceFuture = Future.value(attendanceList);
+  //     _employeeMapFuture = Future.value(employeeMap);
+  //   });
+  // }
+
   Future<void> _refreshData({String? searchQuery}) async {
     final attendanceProvider =
     Provider.of<AttendanceProvider>(context, listen: false);
     final employeeProvider =
     Provider.of<EmployeeProvider>(context, listen: false);
 
-    // Fetch all attendance records
+    // 1) সব attendance আনুন
     List<AttendanceModel> attendanceList =
     await attendanceProvider.getAllAttendance();
 
-    // Apply live search filter
+    // 2) সার্চ ফিল্টার
     if (searchQuery != null && searchQuery.isNotEmpty) {
       attendanceList = attendanceList
           .where((a) =>
@@ -53,12 +92,19 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
           .toList();
     }
 
-    // Apply synced filter
+    // 3) synced filter
     if (_showSyncedOnly) {
       attendanceList = attendanceList.where((a) => a.synced == 1).toList();
     }
 
-    // Employee mapping
+    // 🔥 4) নতুনটি আগে দেখাতে descending sort (createAt সর্বশেষ আগে)
+    attendanceList.sort((a, b) {
+      final aDate = DateTime.tryParse(a.createAt) ?? DateTime(1970);
+      final bDate = DateTime.tryParse(b.createAt) ?? DateTime(1970);
+      return bDate.compareTo(aDate); // latest → oldest
+    });
+
+    // 5) employee map
     final Map<String, EmployeeModel?> employeeMap = {};
     for (var attendance in attendanceList) {
       if (!employeeMap.containsKey(attendance.employeeNo)) {

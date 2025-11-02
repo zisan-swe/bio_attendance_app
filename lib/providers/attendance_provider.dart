@@ -302,7 +302,7 @@ class AttendanceProvider with ChangeNotifier {
   }
 
 
-
+  // ---------------- Auto Synced ----------------
   Future<int> countPendingUnsynced() async {
     try {
       final db = await dbHelper.database;
@@ -343,10 +343,9 @@ class AttendanceProvider with ChangeNotifier {
           success++;
         }
       } on SocketException {
-        // এখনও অফলাইন: লুপ থামাও
+
         break;
       } catch (_) {
-        // সার্ভার/অন্যান্য ইস্যু: পরেরটা ট্রাই করো
       }
     }
 

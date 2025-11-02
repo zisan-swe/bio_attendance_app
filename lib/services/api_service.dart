@@ -4,6 +4,7 @@ import '../db/database_helper.dart';
 import '../models/attendance_model.dart';
 import '../models/employee_model.dart';
 import '../providers/employee_provider.dart';
+import 'dart:io';
 
 class ApiService {
   static const String baseUrl = "https://bats.kisanbotanix.com/api/v1";
@@ -61,16 +62,22 @@ class ApiService {
         body: jsonEncode(body),
       );
 
-      final responseBody = jsonDecode(response.body);
+      final responseBody =
+      response.body.isNotEmpty ? jsonDecode(response.body) : {};
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return responseBody['message'] ?? "Attendance synced successfully!";
+        return (responseBody['message'] as String?) ??
+            "Attendance synced successfully!";
       } else {
-        return responseBody['message'] ?? "Failed to sync attendance.";
+        return (responseBody['message'] as String?) ??
+            "Failed to sync attendance.";
       }
+    } on SocketException {
+      // ⛔️ IMPORTANT: rethrow so caller can detect offline and show the right message
+      rethrow;
     } catch (e) {
-      return "Connection lost. Please check your internet connection.";
-      // return "Exception occurred: $e";
+      // Other server/client errors return a message but do NOT mask offline
+      return "Failed to sync attendance. ($e)";
     }
   }
 

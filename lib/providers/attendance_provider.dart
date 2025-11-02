@@ -7,6 +7,7 @@ import '../models/attendance_model.dart';
 import '../models/employee_model.dart';
 import '../services/api_service.dart';
 import '../../services/fingerprint_service.dart';
+import 'dart:io';
 
 class AttendanceProvider with ChangeNotifier {
   final DatabaseHelper dbHelper = DatabaseHelper.instance;
@@ -299,4 +300,58 @@ class AttendanceProvider with ChangeNotifier {
       return null;
     }
   }
+
+
+
+  Future<int> countPendingUnsynced() async {
+    try {
+      final db = await dbHelper.database;
+      final res = await db.query(
+        _attendanceTable,
+        where: 'synced = ?',
+        whereArgs: [0],
+      );
+      return res.length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<int> syncPendingAttendance() async {
+    final db = await dbHelper.database;
+    final pending = await db.query(
+      _attendanceTable,
+      where: 'synced = ?',
+      whereArgs: [0],
+      orderBy: 'id ASC',
+    );
+
+    int success = 0;
+    for (final row in pending) {
+      final model = AttendanceModel.fromMap(row);
+      try {
+        final message = await ApiService.createAttendance(model);
+        final ok = message.toLowerCase().contains('success');
+        if (ok) {
+          await db.update(
+            _attendanceTable,
+            model.copyWith(synced: 1).toMap(),
+            where: 'id = ?',
+            whereArgs: [model.id],
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+          success++;
+        }
+      } on SocketException {
+        // এখনও অফলাইন: লুপ থামাও
+        break;
+      } catch (_) {
+        // সার্ভার/অন্যান্য ইস্যু: পরেরটা ট্রাই করো
+      }
+    }
+
+    if (success > 0) notifyListeners();
+    return success;
+  }
+
 }

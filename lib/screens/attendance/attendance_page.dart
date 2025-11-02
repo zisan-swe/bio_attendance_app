@@ -1,4 +1,7 @@
+// E:\Android\bio_attendance_app\lib\screens\attendance\attendance_page.dart
 import 'dart:async';
+import 'dart:io';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -25,7 +28,13 @@ class _AttendancePageState extends State<AttendancePage> {
   Timer? _timer;
   bool isScanning = false;
 
-  Map<String, bool> fingerScanStatus = {
+  // Connectivity & syncing
+  StreamSubscription<List<ConnectivityResult>>? _connSub;
+  int _pending = 0;
+  DateTime _nextAutoSyncAllowed = DateTime.fromMillisecondsSinceEpoch(0);
+
+  // Which finger button is active
+  final Map<String, bool> fingerScanStatus = {
     'Left Thumb': false,
     'Right Thumb': false,
     'Left Index': false,
@@ -38,17 +47,27 @@ class _AttendancePageState extends State<AttendancePage> {
     'Right Little': false,
   };
 
+  // Formats
+  static final _timeFormat = DateFormat('hh:mm:ss a');
+  static final _dateFormat = DateFormat('EEEE, MMMM d');
+  static final _timeLogFormat = DateFormat('HH:mm:ss');
+  static final _dateLogFormat = DateFormat('yyyy-MM-dd');
+
   @override
   void initState() {
     super.initState();
     _updateTime();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _updateTime());
+    _refreshPending();
+    _listenConnectivity();
   }
 
-  static final _timeFormat = DateFormat('hh:mm:ss a');
-  static final _dateFormat = DateFormat('EEEE, MMMM d');
-  static final _timeLogFormat = DateFormat('HH:mm:ss');
-  static final _dateLogFormat = DateFormat('yyyy-MM-dd');
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _connSub?.cancel();
+    super.dispose();
+  }
 
   void _updateTime() {
     if (!mounted) return;
@@ -59,69 +78,35 @@ class _AttendancePageState extends State<AttendancePage> {
     });
   }
 
-  // Future<void> _startFingerprintScan() async {
-  //   if (isScanning) return;
-  //   setState(() => isScanning = true);
-  //
-  //   final fingerprintService = FingerprintService();
-  //   String? scannedTemplate;
-  //
-  //   try {
-  //     scannedTemplate = await fingerprintService.scanFingerprint();
-  //     debugPrint("Scanned Template: $scannedTemplate");
-  //     if (scannedTemplate == null || scannedTemplate.isEmpty) {
-  //       _showSnack("❌ Invalid or empty fingerprint scan.", isError: true);
-  //       setState(() => isScanning = false);
-  //       return;
-  //     }
-  //   } on FingerprintException catch (e) {
-  //     debugPrint("Scan Error: ${e.code} - ${e.message}");
-  //     _showSnack("❌ Finger scan failed: ${e.message}", isError: true);
-  //     setState(() => isScanning = false);
-  //     return;
-  //   } catch (e) {
-  //     debugPrint("Scan Error: $e");
-  //     _showSnack("❌ Finger scan failed: $e", isError: true);
-  //     setState(() => isScanning = false);
-  //     return;
-  //   }
-  //
-  //   final attendanceProvider = context.read<AttendanceProvider>();
-  //   EmployeeModel? employee;
-  //   try {
-  //     employee = await attendanceProvider.getEmployeeByFingerprint(scannedTemplate);
-  //     debugPrint("Employee Found: ${employee?.name ?? 'None'}");
-  //     if (employee == null) {
-  //       _showSnack("❌ No matching employee found.", isError: true);
-  //       setState(() => isScanning = false);
-  //       return;
-  //     }
-  //   } catch (e) {
-  //     debugPrint("Match Error: $e");
-  //     _showSnack("❌ Error matching employee: $e", isError: true);
-  //     setState(() => isScanning = false);
-  //     return;
-  //   }
-  //
-  //   final selectedFinger = fingerScanStatus.entries.firstWhere(
-  //         (e) => e.value,
-  //     orElse: () => MapEntry('Left Thumb', true),
-  //   ).key;
-  //
-  //   final storedTemplate =
-  //       employee.fingerprints[selectedFinger] ?? employee.fingerInfo1;
-  //   debugPrint("Stored Template ($selectedFinger): $storedTemplate");
-  //   if (storedTemplate == null || storedTemplate.isEmpty) {
-  //     _showSnack("❌ No stored template for $selectedFinger.", isError: true);
-  //     setState(() => isScanning = false);
-  //     return;
-  //   }
-  //
-  //   await _saveAndRedirect(employee, selectedFinger);
-  // }
+  Future<void> _refreshPending() async {
+    final n = await context.read<AttendanceProvider>().countPendingUnsynced();
+    if (mounted) setState(() => _pending = n);
+  }
 
+  void _listenConnectivity() {
+    _connSub = Connectivity()
+        .onConnectivityChanged
+        .listen((List<ConnectivityResult> results) async {
+      final online = results.any(
+            (r) => r == ConnectivityResult.mobile || r == ConnectivityResult.wifi,
+      );
+      if (!online) return;
 
-  // In E:\Android\bio_attendance_app\lib\screens\attendance\attendance_page.dart
+      // throttle auto-sync attempts
+      if (DateTime.now().isBefore(_nextAutoSyncAllowed)) return;
+      _nextAutoSyncAllowed = DateTime.now().add(const Duration(seconds: 10));
+
+      final synced =
+      await context.read<AttendanceProvider>().syncPendingAttendance();
+      if (!mounted) return;
+      await _refreshPending();
+      if (synced > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('✅ Auto-synced $synced record(s)')),
+        );
+      }
+    });
+  }
 
   Future<void> _startFingerprintScan() async {
     if (isScanning) return;
@@ -133,92 +118,104 @@ class _AttendancePageState extends State<AttendancePage> {
     try {
       scannedTemplate = await fingerprintService.scanFingerprint();
       if (scannedTemplate == null || scannedTemplate.isEmpty) {
-        _showSnack("❌ Invalid or empty fingerprint scan.", isError: true);
+        _showSnack('❌ Invalid or empty fingerprint scan.', isError: true);
         setState(() => isScanning = false);
         return;
       }
     } catch (e) {
-      _showSnack("❌ Finger scan failed: $e", isError: true);
+      _showSnack('❌ Finger scan failed: $e', isError: true);
       setState(() => isScanning = false);
       return;
     }
 
-    // Identify employee by scannedTemplate (uses DB helper that now decodes arrays)
+    // Identify employee from DB by scanned template
     final attendanceProvider = context.read<AttendanceProvider>();
     EmployeeModel? employee;
     try {
-      employee = await attendanceProvider.getEmployeeByFingerprint(scannedTemplate);
+      employee =
+      await attendanceProvider.getEmployeeByFingerprint(scannedTemplate);
       if (employee == null) {
-        _showSnack("❌ No matching employee found.", isError: true);
+        _showSnack('❌ No matching employee found.', isError: true);
         setState(() => isScanning = false);
         return;
       }
     } catch (e) {
-      _showSnack("❌ Error matching employee: $e", isError: true);
+      _showSnack('❌ Error matching employee: $e', isError: true);
       setState(() => isScanning = false);
       return;
     }
 
-    // Use the finger the user tapped as the label to save
-    final selectedFinger = fingerScanStatus.entries.firstWhere(
-          (e) => e.value,
-      orElse: () => const MapEntry('Left Thumb', true),
-    ).key;
+    // Which finger label user tapped (for saving label only)
+    final selectedFinger = fingerScanStatus.entries
+        .firstWhere((e) => e.value, orElse: () => const MapEntry('Left Thumb', true))
+        .key;
 
-    await _saveAndRedirect(employee, selectedFinger);
+    await _saveAndMaybeSync(employee, selectedFinger);
   }
 
-  Future<void> _saveAndRedirect(EmployeeModel employee, String selectedFinger) async {
+  Future<void> _saveAndMaybeSync(
+      EmployeeModel employee, String selectedFinger) async {
     final now = DateTime.now().toUtc().add(const Duration(hours: 6));
     final time = _timeLogFormat.format(now);
     final date = _dateLogFormat.format(now);
 
     final locationService = LocationService();
     final location = await locationService.getCurrentLocation();
-    final safeLocation = (location != null && location.isNotEmpty) ? location : 'Unknown';
+    final safeLocation =
+    (location != null && location.isNotEmpty) ? location : 'Unknown';
 
-    final projectId = await DatabaseHelper.instance.getSettingBySlug('project_id');
-    final blockId = await DatabaseHelper.instance.getSettingBySlug('block_id');
+    final projectId =
+    await DatabaseHelper.instance.getSettingBySlug('project_id');
+    final blockId =
+    await DatabaseHelper.instance.getSettingBySlug('block_id');
 
     final attendance = AttendanceModel(
-      // id: null,
       deviceId: 'Device001',
       projectId: int.tryParse(projectId?.value ?? '0') ?? 0,
       blockId: int.tryParse(blockId?.value ?? '0') ?? 0,
       employeeNo: employee.employeeNo,
       workingDate: date,
       attendanceStatus: selectedAction,
-      inTime: (selectedAction == 'Check In' || selectedAction == 'Break In') ? time : '',
-      outTime: (selectedAction == 'Check Out' || selectedAction == 'Break Out') ? time : '',
+      inTime:
+      (selectedAction == 'Check In' || selectedAction == 'Break In') ? time : '',
+      outTime:
+      (selectedAction == 'Check Out' || selectedAction == 'Break Out') ? time : '',
       location: safeLocation,
       fingerprint: selectedFinger,
       status: 'Regular',
       remarks: '',
       createAt: now.toIso8601String(),
       updateAt: now.toIso8601String(),
-      synced: 0,
+      synced: 0, // offline-first
     );
 
     final attendanceProvider = context.read<AttendanceProvider>();
 
-    try {
-      final localId = await attendanceProvider.insertAttendance(attendance);
-      final message = await ApiService.createAttendance(attendance);
-      final synced = message.toLowerCase().contains("success");
+    // 1) Always save locally first (synced = 0)
+    final localId = await attendanceProvider.insertAttendance(attendance);
+    await _refreshPending();
 
-      if (synced) {
+    // 2) Try to sync (if online). If offline (SocketException), keep offline silently.
+    try {
+      final message = await ApiService.createAttendance(attendance);
+      final ok = message.toLowerCase().contains('success');
+      if (ok) {
         await attendanceProvider.updateAttendance(
           attendance.copyWith(id: localId, synced: 1),
         );
-        _showSnack("✅ $message", isError: false);
+        await _refreshPending();
+        _showSnack('✅ $message');
       } else {
-        _showSnack("⚠️ $message", isError: true);
+        _showSnack('⚠️ $message', isError: true);
       }
+    } on SocketException {
+      // Offline: keep local, show friendly info
+      _showSnack('📴 Saved locally (offline). Will sync when online.');
     } catch (e) {
-      debugPrint("Save Error: $e");
-      _showSnack("❌ Failed to log attendance: $e", isError: true);
+      // Other server error: keep local pending
+      _showSnack('⚠️ Saved locally. Sync pending. ($e)', isError: true);
     } finally {
-      setState(() => isScanning = false);
+      if (mounted) setState(() => isScanning = false);
     }
   }
 
@@ -232,18 +229,49 @@ class _AttendancePageState extends State<AttendancePage> {
     );
   }
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
+  // ------------------- UI -------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Attendance'),
         backgroundColor: Colors.blueGrey,
+        actions: [
+          IconButton(
+            tooltip: 'Sync pending',
+            onPressed: () async {
+              final synced =
+              await context.read<AttendanceProvider>().syncPendingAttendance();
+              await _refreshPending();
+              final msg = synced > 0
+                  ? '✅ Synced $synced record(s)'
+                  : 'No pending records';
+              _showSnack(msg, isError: synced == 0);
+            },
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.sync),
+                if (_pending > 0)
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$_pending',
+                        style: const TextStyle(fontSize: 10, color: Colors.white),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -286,7 +314,7 @@ class _AttendancePageState extends State<AttendancePage> {
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  formattedTime.isEmpty ? "Loading..." : formattedTime,
+                  formattedTime.isEmpty ? 'Loading...' : formattedTime,
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.white,

@@ -1,12 +1,38 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../models/employee_model.dart';
 
 class EmployeeDetailsPage extends StatelessWidget {
   final EmployeeModel employee;
 
-  const EmployeeDetailsPage({Key? key, required this.employee}) : super(key: key);
+  const EmployeeDetailsPage({Key? key, required this.employee})
+      : super(key: key);
 
+  // ---------- Helpers ----------
+  /// Safely parse a JSON array string like '["tpl1","tpl2"]'.
+  /// Returns empty list if invalid or empty.
+  List<String> _parseTemplates(String raw) {
+    if (raw.isEmpty) return const [];
+    try {
+      final j = jsonDecode(raw);
+      if (j is List) {
+        return j
+            .map((e) => (e ?? '').toString())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      }
+      // legacy single string (non-JSON)
+      return raw.isNotEmpty ? [raw] : const [];
+    } catch (_) {
+      // legacy single string (non-JSON)
+      return raw.isNotEmpty ? [raw] : const [];
+    }
+  }
+
+  /// Styled, read-only text field
   Widget _buildReadOnlyField(String label, String value, IconData icon) {
     return TextFormField(
       initialValue: value,
@@ -25,12 +51,38 @@ class EmployeeDetailsPage extends StatelessWidget {
   }
 
   Widget _buildReadOnlyDate(String label, String value) {
+    return _buildReadOnlyField(label, value, Icons.calendar_today);
+  }
+
+  /// Pretty, read-only Employee ID with monospaced digits and Copy button
+  Widget _buildEmployeeId(BuildContext context, String id) {
+    final value = id.isNotEmpty ? id : '—';
     return TextFormField(
       initialValue: value,
       readOnly: true,
+      style: const TextStyle(
+        letterSpacing: 1.1,
+        fontFeatures: [FontFeature.tabularFigures()], // monospaced digits
+      ),
       decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: const Icon(Icons.calendar_today, color: Colors.blueGrey),
+        labelText: 'Employee ID (Auto)',
+        prefixIcon: const Icon(Icons.badge, color: Colors.blueGrey),
+        suffixIcon: IconButton(
+          tooltip: 'Copy ID',
+          icon: const Icon(Icons.copy),
+          onPressed: id.isEmpty
+              ? null
+              : () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            Clipboard.setData(ClipboardData(text: id));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Employee ID copied'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Colors.blueGrey),
@@ -41,16 +93,27 @@ class EmployeeDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildFingerBase64(String label, String base64Data) {
+  /// One finger “status button” with optional sample count badge (e.g., 3/5)
+  Widget _buildFingerStatus(String label, List<String> samples) {
+    final hasFinger = samples.isNotEmpty;
+    final count = samples.length;
+
+    final bg = hasFinger ? Colors.green : Colors.grey[400];
+    final fg = Colors.white;
+
     return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
           ElevatedButton(
-            onPressed: null,
+            onPressed: null, // read-only
             style: ElevatedButton.styleFrom(
-              backgroundColor: base64Data.isNotEmpty ? Colors.green[700] : Colors.grey[400],
-              foregroundColor: Colors.white,
+              // normal colors (won't be used since it's disabled)
+              backgroundColor: bg,
+              foregroundColor: fg,
+              // ✅ ensure the *disabled* state is also green when enrolled
+              disabledBackgroundColor: bg,
+              disabledForegroundColor: fg,
               minimumSize: const Size(140, 50),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -58,53 +121,68 @@ class EmployeeDetailsPage extends StatelessWidget {
               elevation: 4,
             ),
             child: Text(
-              label.split(' ').last,
+              label.split(' ').last, // "Thumb", "Index", ...
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.blueGrey[200]!),
-              borderRadius: BorderRadius.circular(12),
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  spreadRadius: 2,
-                  blurRadius: 5,
-                  offset: const Offset(0, 3),
+
+          if (hasFinger)
+            Positioned(
+              right: -6,
+              top: -6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.green.shade700),
                 ),
-              ],
-            ),
-            constraints: const BoxConstraints(maxHeight: 100, minWidth: double.infinity),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.vertical,
-              child: Text(
-                base64Data.isNotEmpty ? base64Data : 'Not Captured',
-                style: TextStyle(fontSize: 12, color: Colors.blueGrey[800]),
+                child: Text(
+                  '$count/5',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.green.shade800,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
   }
 
+  /// Biometric Section – reads JSON arrays & shows enrolled/not-enrolled properly
   Widget _buildBiometricSection(EmployeeModel emp) {
-    final leftFingers = [
-      'Left Thumb', 'Left Index', 'Left Middle', 'Left Ring', 'Left Little'
-    ];
-    final rightFingers = [
-      'Right Thumb', 'Right Index', 'Right Middle', 'Right Ring', 'Right Little'
-    ];
+    // Parse JSON arrays (or legacy single strings) into lists
+    final left = <String, List<String>>{
+      'Left Thumb': _parseTemplates(emp.fingerInfo1),
+      'Left Index': _parseTemplates(emp.fingerInfo2),
+      'Left Middle': _parseTemplates(emp.fingerInfo3),
+      'Left Ring': _parseTemplates(emp.fingerInfo4),
+      'Left Little': _parseTemplates(emp.fingerInfo5),
+    };
+    final right = <String, List<String>>{
+      'Right Thumb': _parseTemplates(emp.fingerInfo6),
+      'Right Index': _parseTemplates(emp.fingerInfo7),
+      'Right Middle': _parseTemplates(emp.fingerInfo8),
+      'Right Ring': _parseTemplates(emp.fingerInfo9),
+      'Right Little': _parseTemplates(emp.fingerInfo10),
+    };
 
-    final leftValues = [
-      emp.fingerInfo1, emp.fingerInfo2, emp.fingerInfo3, emp.fingerInfo4, emp.fingerInfo5
+    final leftKeys = [
+      'Left Thumb',
+      'Left Index',
+      'Left Middle',
+      'Left Ring',
+      'Left Little'
     ];
-    final rightValues = [
-      emp.fingerInfo6, emp.fingerInfo7, emp.fingerInfo8, emp.fingerInfo9, emp.fingerInfo10
+    final rightKeys = [
+      'Right Thumb',
+      'Right Index',
+      'Right Middle',
+      'Right Ring',
+      'Right Little'
     ];
 
     return Card(
@@ -125,16 +203,51 @@ class EmployeeDetailsPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+
+            // Headers
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: const [
+                Expanded(
+                  child: Text(
+                    'Left Hand',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blueGrey,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    'Right Hand',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blueGrey,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Rows of finger buttons (Left | Right)
             Column(
-              children: List.generate(5, (index) {
+              children: List.generate(5, (i) {
+                final leftLabel = leftKeys[i];
+                final rightLabel = rightKeys[i];
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildFingerBase64(leftFingers[index], leftValues[index]),
+                      _buildFingerStatus(leftLabel, left[leftLabel] ?? const []),
                       const SizedBox(width: 20),
-                      _buildFingerBase64(rightFingers[index], rightValues[index]),
+                      _buildFingerStatus(
+                          rightLabel, right[rightLabel] ?? const []),
                     ],
                   ),
                 );
@@ -146,6 +259,7 @@ class EmployeeDetailsPage extends StatelessWidget {
     );
   }
 
+  // ---------- UI ----------
   @override
   Widget build(BuildContext context) {
     final emp = employee;
@@ -176,35 +290,50 @@ class EmployeeDetailsPage extends StatelessWidget {
             children: [
               Card(
                 elevation: 6,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
                       CircleAvatar(
                         radius: 60,
-                        backgroundImage: emp.imagePath.isNotEmpty ? FileImage(File(emp.imagePath)) : null,
+                        backgroundImage: emp.imagePath.isNotEmpty
+                            ? FileImage(File(emp.imagePath))
+                            : null,
                         backgroundColor: Colors.blueGrey[100],
                         child: emp.imagePath.isEmpty
-                            ? const Icon(Icons.person, size: 50, color: Colors.blueGrey)
+                            ? const Icon(Icons.person,
+                            size: 50, color: Colors.blueGrey)
                             : null,
                       ),
                       const SizedBox(height: 20),
-                      _buildReadOnlyField('Employee Name', emp.name, Icons.person),
+
+                      // Employee ID (copyable)
+                      _buildEmployeeId(context, emp.employeeNo),
+                      const SizedBox(height: 16),
+
+                      _buildReadOnlyField(
+                          'Employee Name', emp.name, Icons.person),
                       const SizedBox(height: 16),
                       _buildReadOnlyField('Email', emp.email, Icons.email),
                       const SizedBox(height: 16),
-                      _buildReadOnlyField('Employee ID', emp.employeeNo, Icons.badge),
+                      _buildReadOnlyField(
+                          'Employee NID', emp.nid, Icons.badge),
                       const SizedBox(height: 16),
-                      _buildReadOnlyField('Employee NID', emp.nid, Icons.badge),
-                      const SizedBox(height: 16),
-                      _buildReadOnlyField('Employee Daily Wages', emp.dailyWages.toStringAsFixed(2), Icons.attach_money),
+                      _buildReadOnlyField(
+                        'Employee Daily Wages',
+                        emp.dailyWages.toStringAsFixed(2),
+                        Icons.attach_money,
+                      ),
                       const SizedBox(height: 16),
                       _buildReadOnlyField('Phone', emp.phone, Icons.phone),
                       const SizedBox(height: 16),
-                      _buildReadOnlyField('Father\'s Name', emp.fatherName, Icons.person_outline),
+                      _buildReadOnlyField("Father's Name", emp.fatherName,
+                          Icons.person_outline),
                       const SizedBox(height: 16),
-                      _buildReadOnlyField('Mother\'s Name', emp.motherName, Icons.person_outline),
+                      _buildReadOnlyField("Mother's Name", emp.motherName,
+                          Icons.person_outline),
                       const SizedBox(height: 16),
                       _buildReadOnlyDate('Date of Birth', emp.dob),
                       const SizedBox(height: 16),

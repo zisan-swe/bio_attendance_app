@@ -191,7 +191,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 250,
                 child: _buildButton(
                   context: context,
-                  label: 'Worker',
+                  label: 'Load Employee',
                   icon: Icons.person,
                   destination: const WorkerPage(),
                   color: Colors.indigo,

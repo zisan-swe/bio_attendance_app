@@ -220,7 +220,7 @@ class _WorkerPageState extends State<WorkerPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Worker List'),
+        title: const Text('Load Employee List'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

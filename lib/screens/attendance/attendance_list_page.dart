@@ -80,40 +80,42 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
     final employeeProvider =
     Provider.of<EmployeeProvider>(context, listen: false);
 
-    // 1) সব attendance আনুন
+    // 1) Load all attendance
     List<AttendanceModel> attendanceList =
     await attendanceProvider.getAllAttendance();
 
-    // 2) সার্চ ফিল্টার
-    if (searchQuery != null && searchQuery.isNotEmpty) {
-      attendanceList = attendanceList
-          .where((a) =>
-          a.employeeNo.toLowerCase().contains(searchQuery.toLowerCase()))
-          .toList();
+    // 2) Build an employee map for all employeeNos present
+    final uniqueNos = attendanceList.map((a) => a.employeeNo).toSet();
+    final Map<String, EmployeeModel?> employeeMap = {};
+    for (final no in uniqueNos) {
+      employeeMap[no] = await employeeProvider.getEmployeeByNumber(no);
     }
 
-    // 3) synced filter
+    // 3) Apply search by Employee No OR Employee Name
+    if (searchQuery != null && searchQuery.isNotEmpty) {
+      final q = searchQuery.toLowerCase();
+      attendanceList = attendanceList.where((a) {
+        final emp = employeeMap[a.employeeNo];
+        final name = (emp?.name ?? '').toLowerCase();
+        final idMatch = a.employeeNo.toLowerCase().contains(q);
+        final nameMatch = name.contains(q);
+        return idMatch || nameMatch;
+      }).toList();
+    }
+
+    // 4) Synced filter
     if (_showSyncedOnly) {
       attendanceList = attendanceList.where((a) => a.synced == 1).toList();
     }
 
-    // 🔥 4) নতুনটি আগে দেখাতে descending sort (createAt সর্বশেষ আগে)
+    // 5) Sort: latest first
     attendanceList.sort((a, b) {
       final aDate = DateTime.tryParse(a.createAt) ?? DateTime(1970);
       final bDate = DateTime.tryParse(b.createAt) ?? DateTime(1970);
-      return bDate.compareTo(aDate); // latest → oldest
+      return bDate.compareTo(aDate);
     });
 
-    // 5) employee map
-    final Map<String, EmployeeModel?> employeeMap = {};
-    for (var attendance in attendanceList) {
-      if (!employeeMap.containsKey(attendance.employeeNo)) {
-        final employee =
-        await employeeProvider.getEmployeeByNumber(attendance.employeeNo);
-        employeeMap[attendance.employeeNo] = employee;
-      }
-    }
-
+    // 6) Set futures for UI
     setState(() {
       _attendanceFuture = Future.value(attendanceList);
       _employeeMapFuture = Future.value(employeeMap);
@@ -169,7 +171,7 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search by Employee No',
+                hintText: 'Search by Employee Name or No',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),

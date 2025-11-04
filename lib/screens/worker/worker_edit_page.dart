@@ -146,18 +146,18 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
     );
   }
 
-  Future<void> _selectDate(
-      BuildContext context, TextEditingController controller) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.tryParse(controller.text) ?? DateTime(2000),
-      firstDate: DateTime(1950),
-      lastDate: DateTime(2100),
-    );
-    if (picked != null) {
-      controller.text = DateFormat('yyyy-MM-dd').format(picked);
-    }
-  }
+  // Future<void> _selectDate(
+  //     BuildContext context, TextEditingController controller) async {
+  //   final picked = await showDatePicker(
+  //     context: context,
+  //     initialDate: DateTime.tryParse(controller.text) ?? DateTime(2000),
+  //     firstDate: DateTime(1950),
+  //     lastDate: DateTime(2100),
+  //   );
+  //   if (picked != null) {
+  //     controller.text = DateFormat('yyyy-MM-dd').format(picked);
+  //   }
+  // }
 
   // -------------------- Finger enrollment (5 samples, auto) --------------------
 
@@ -448,16 +448,18 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
       IconData icon, {
         bool isRequired = true,
         TextInputType? type,
+        bool readOnly = false, // 👈 added parameter
       }) {
     return TextFormField(
       controller: controller,
       keyboardType: type ?? TextInputType.text,
+      readOnly: readOnly, // 👈 make field read-only when true
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),
         border: const OutlineInputBorder(),
       ),
-      validator: isRequired
+      validator: isRequired && !readOnly // 👈 skip validation if read-only
           ? (val) => val == null || val.trim().isEmpty ? 'Enter $label' : null
           : null,
     );
@@ -469,11 +471,13 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
       TextEditingController controller,
       IconData icon, {
         bool isRequired = true,
+        bool readOnly = true,
       }) {
     return TextFormField(
       controller: controller,
       keyboardType: TextInputType.phone,
       maxLength: 11,
+      readOnly: readOnly,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),
@@ -494,7 +498,7 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
     );
   }
 
-  /// ✅ FIXED: add isRequired
+  /// ✅ Date field with isRequired and proper date selection
   Widget _buildDateField(
       String label,
       TextEditingController controller, {
@@ -502,10 +506,25 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
       }) {
     return TextFormField(
       controller: controller,
-      readOnly: true,
       onTap: () => _selectDate(context, controller),
       decoration: InputDecoration(
-        labelText: label,
+        label: RichText(
+          text: TextSpan(
+            text: label,
+            style: const TextStyle(color: Colors.black, fontSize: 16),
+            children: isRequired
+                ? const [
+              TextSpan(
+                text: ' *',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ]
+                : [],
+          ),
+        ),
         prefixIcon: const Icon(Icons.calendar_month),
         border: const OutlineInputBorder(),
       ),
@@ -515,6 +534,31 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
       },
     );
   }
+
+  /// ✅ Separate helper function for showing date picker
+  Future<void> _selectDate(BuildContext context, TextEditingController controller) async {
+    DateTime initialDate;
+    try {
+      // If the field already has a valid date, use it
+      initialDate = DateFormat('yyyy-MM-dd').parse(controller.text);
+    } catch (_) {
+      // Otherwise, use today's date
+      initialDate = DateTime.now();
+    }
+
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(1950),
+      lastDate: DateTime(2100),
+    );
+
+    if (picked != null) {
+      // ✅ Update the text field when a date is picked
+      controller.text = DateFormat('yyyy-MM-dd').format(picked);
+    }
+  }
+
 
   /// Button that opens the auto-capture dialog and shows 5-dot progress
   Widget _buildFingerButton(String fingerName) {
@@ -625,26 +669,26 @@ class _WorkerEditPageState extends State<WorkerEditPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              _buildField('Worker Name', nameController, Icons.person),
+              _buildField('Worker Name', nameController, Icons.person, readOnly: true),
               const SizedBox(height: 12),
               _buildField('Email', emailController, Icons.email,
-                  isRequired: false, type: TextInputType.emailAddress),
+                  isRequired: false, type: TextInputType.emailAddress, readOnly: true),
               const SizedBox(height: 12),
-              _buildField('Worker ID', codeController, Icons.badge),
+              _buildField('Worker ID', codeController, Icons.badge, readOnly: true),
               const SizedBox(height: 12),
               _buildField('Worker NID', nidController, Icons.badge,
-                  isRequired: false),
+                  isRequired: false, readOnly: true),
               const SizedBox(height: 12),
               _buildField('Daily Wages', dailyWagesController, Icons.money,
-                  type: TextInputType.number),
+                  type: TextInputType.number, readOnly: true),
               const SizedBox(height: 12),
               _buildFieldPhone('Phone', phoneController, Icons.phone,
                   isRequired: false),
               const SizedBox(height: 12),
-              _buildField('Father\'s Name', fatherController, Icons.person),
+              _buildField('Father\'s Name', fatherController, Icons.person, readOnly: true),
               const SizedBox(height: 12),
               _buildField('Mother\'s Name', motherController, Icons.person,
-                  isRequired: false),
+                  isRequired: false, readOnly: true),
               const SizedBox(height: 12),
               _buildDateField('Date of Birth', dobController,
                   isRequired: false),

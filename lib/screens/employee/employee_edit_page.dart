@@ -479,14 +479,29 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
       controller: controller,
       readOnly: true,
       onTap: () async {
+        // ✅ Determine initial date for picker
+        DateTime initialDate;
+        try {
+          // If there's already a date in the field, use it
+          initialDate = DateFormat('yyyy-MM-dd').parse(controller.text);
+        } catch (_) {
+          // Otherwise, show today's date
+          initialDate = DateTime.now();
+        }
+
+        // ✅ Show the picker
         final DateTime? picked = await showDatePicker(
           context: context,
-          initialDate: DateTime.tryParse(controller.text) ?? DateTime(2025),
+          initialDate: initialDate,
           firstDate: DateTime(1950),
           lastDate: DateTime(2100),
         );
+
+        // ✅ Only update the field when the user picks a date
         if (picked != null) {
-          setState(() => controller.text = DateFormat('yyyy-MM-dd').format(picked));
+          setState(() {
+            controller.text = DateFormat('yyyy-MM-dd').format(picked);
+          });
         }
       },
       decoration: InputDecoration(
@@ -513,6 +528,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
       },
     );
   }
+
 
   /// Finger button with 5-dot progress + opens enrollment dialog
   Widget _buildFinger(String fingerName) {
@@ -657,10 +673,12 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> {
                         child: _buildInputField('Employee Email', emailController, Icons.email,
                             isRequired: false),
                       ),
-                      SizedBox(
-                        width: isWide ? 400 : double.infinity,
-                        child: _buildInputField('Employee ID', codeController, Icons.code),
-                      ),
+
+                  //Employee ID Field
+                      // SizedBox(
+                      //   width: isWide ? 400 : double.infinity,
+                      //   child: _buildInputField('Employee ID', codeController, Icons.code),
+                      // ),
                       SizedBox(
                         width: isWide ? 400 : double.infinity,
                         child: _buildInputField('Employee NID', nidController, Icons.badge,

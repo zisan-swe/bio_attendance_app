@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,6 +10,7 @@ import '../../providers/employee_provider.dart';
 import '../../services/fingerprint_service.dart';
 import '../../services/api_service.dart';
 import '../../db/database_helper.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class EmployeeCreatePage extends StatefulWidget {
   final EmployeeModel? employee;
@@ -77,6 +79,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
         _profileImage = File(emp.imagePath);
       }
 
+      // Decode finger templates for editing
       List<String> _decode(String s) {
         if (s.isEmpty) return [];
         try {
@@ -88,7 +91,6 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                 .toList();
           }
         } catch (_) {
-          // Not JSON, treat as single template
           if (s.isNotEmpty) return [s];
         }
         return [];
@@ -108,8 +110,16 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
       };
     } else {
       fingerTemplates = emptyMap;
+
+      // 🧠 Auto-generate new Employee ID
+      generateSequentialEmployeeId().then((newId) {
+        setState(() {
+          codeController.text = newId;
+        });
+      });
     }
   }
+
 
   @override
   void dispose() {
@@ -426,6 +436,33 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     return false;
   }
 
+  Future<String> generateSequentialEmployeeId() async {
+    final now = DateTime.now();
+    final prefs = await SharedPreferences.getInstance();
+
+    // আগের সংরক্ষিত কাউন্টার পড়া
+    int lastNumber = prefs.getInt('employee_counter') ?? 0;
+
+    // এক বাড়ানো
+    lastNumber++;
+
+    // নতুন কাউন্টার সংরক্ষণ
+    await prefs.setInt('employee_counter', lastNumber);
+
+    // তারিখ ও সময় অংশ (YYYYMMDD)
+    final datePart = "${now.year}"
+        "${now.month.toString().padLeft(2, '0')}"
+        "${now.day.toString().padLeft(2, '0')}";
+
+    // ৫-ডিজিটে প্যাড করা সংখ্যা
+    final countPart = lastNumber.toString().padLeft(5, '0');
+
+    // চূড়ান্ত ID
+    final employeeId = "EMP${datePart}_$countPart";
+
+    return employeeId;
+  }
+
   Future<void> _save() async {
     if (_formKey.currentState!.validate()) {
 
@@ -573,9 +610,21 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
       controller: controller,
       readOnly: true,
       onTap: () async {
+        DateTime initialDate = DateTime.now();
+
+        // If the controller already has a date, try parsing it
+        if (controller.text.isNotEmpty) {
+          try {
+            initialDate = DateFormat('yyyy-MM-dd').parse(controller.text);
+          } catch (_) {
+            // If parsing fails, fallback to current date
+            initialDate = DateTime.now();
+          }
+        }
+
         final DateTime? picked = await showDatePicker(
           context: context,
-          initialDate: DateTime(2025),
+          initialDate: initialDate,
           firstDate: DateTime(1950),
           lastDate: DateTime(2100),
         );
@@ -769,8 +818,16 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                       _buildInputField(
                           'Employee Email', emailController, Icons.email,
                           isRequired: false),
-                      _buildInputField(
-                          'Employee ID', codeController, Icons.code),
+             //Employee ID Field
+                      // TextFormField(
+                      //   controller: codeController,
+                      //   readOnly: true,
+                      //   decoration: const InputDecoration(
+                      //     labelText: 'Employee ID (Auto)',
+                      //     prefixIcon: Icon(Icons.code),
+                      //     border: OutlineInputBorder(),
+                      //   ),
+                      // ),
                       _buildInputField(
                           'Employee NID', nidController, Icons.badge,
                           isRequired: false),

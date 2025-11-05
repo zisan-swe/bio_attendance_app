@@ -74,51 +74,107 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
   //   });
   // }
 
+
+//Right Search data
+  // Future<void> _refreshData({String? searchQuery}) async {
+  //   final attendanceProvider =
+  //   Provider.of<AttendanceProvider>(context, listen: false);
+  //   final employeeProvider =
+  //   Provider.of<EmployeeProvider>(context, listen: false);
+  //
+  //   // 1) সব attendance আনুন
+  //   List<AttendanceModel> attendanceList =
+  //   await attendanceProvider.getAllAttendance();
+  //
+  //   // 2) সার্চ ফিল্টার
+  //   if (searchQuery != null && searchQuery.isNotEmpty) {
+  //     attendanceList = attendanceList
+  //         .where((a) =>
+  //         a.employeeNo.toLowerCase().contains(searchQuery.toLowerCase()))
+  //         .toList();
+  //   }
+  //
+  //   // 3) synced filter
+  //   if (_showSyncedOnly) {
+  //     attendanceList = attendanceList.where((a) => a.synced == 1).toList();
+  //   }
+  //
+  //   // 🔥 4) নতুনটি আগে দেখাতে descending sort (createAt সর্বশেষ আগে)
+  //   attendanceList.sort((a, b) {
+  //     final aDate = DateTime.tryParse(a.createAt) ?? DateTime(1970);
+  //     final bDate = DateTime.tryParse(b.createAt) ?? DateTime(1970);
+  //     return bDate.compareTo(aDate); // latest → oldest
+  //   });
+  //
+  //   // 5) employee map
+  //   final Map<String, EmployeeModel?> employeeMap = {};
+  //   for (var attendance in attendanceList) {
+  //     if (!employeeMap.containsKey(attendance.employeeNo)) {
+  //       final employee =
+  //       await employeeProvider.getEmployeeByNumber(attendance.employeeNo);
+  //       employeeMap[attendance.employeeNo] = employee;
+  //     }
+  //   }
+  //
+  //   setState(() {
+  //     _attendanceFuture = Future.value(attendanceList);
+  //     _employeeMapFuture = Future.value(employeeMap);
+  //   });
+  // }
+
+
   Future<void> _refreshData({String? searchQuery}) async {
     final attendanceProvider =
     Provider.of<AttendanceProvider>(context, listen: false);
     final employeeProvider =
     Provider.of<EmployeeProvider>(context, listen: false);
 
-    // 1) সব attendance আনুন
-    List<AttendanceModel> attendanceList =
-    await attendanceProvider.getAllAttendance();
+    // ✅ আজকের তারিখ
+    final String todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
-    // 2) সার্চ ফিল্টার
-    if (searchQuery != null && searchQuery.isNotEmpty) {
-      attendanceList = attendanceList
-          .where((a) =>
-          a.employeeNo.toLowerCase().contains(searchQuery.toLowerCase()))
-          .toList();
+    // 1) শুধু আজকের রেকর্ড নাও (DB থেকে সরাসরি)
+    List<AttendanceModel> attendanceList =
+    await attendanceProvider.getAttendanceByDate(todayStr);
+
+    // 2) employee map (name lookup-এর জন্য)
+    final Map<String, EmployeeModel?> employeeMap = {};
+    for (final a in attendanceList) {
+      if (!employeeMap.containsKey(a.employeeNo)) {
+        employeeMap[a.employeeNo] =
+        await employeeProvider.getEmployeeByNumber(a.employeeNo);
+      }
     }
 
-    // 3) synced filter
+    // 3) সার্চ: আজকের রেকর্ডের ভেতরেই Name বা Employee No মিলিয়ে ফিল্টার
+    if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+      final q = searchQuery.trim().toLowerCase();
+      attendanceList = attendanceList.where((a) {
+        final emp = employeeMap[a.employeeNo];
+        final name = emp?.name?.toLowerCase() ?? '';
+        final no = a.employeeNo.toLowerCase();
+        return name.contains(q) || no.contains(q);
+      }).toList();
+    }
+
+    // 4) synced filter
     if (_showSyncedOnly) {
       attendanceList = attendanceList.where((a) => a.synced == 1).toList();
     }
 
-    // 🔥 4) নতুনটি আগে দেখাতে descending sort (createAt সর্বশেষ আগে)
+    // 5) sort: latest → oldest (createAt)
     attendanceList.sort((a, b) {
       final aDate = DateTime.tryParse(a.createAt) ?? DateTime(1970);
       final bDate = DateTime.tryParse(b.createAt) ?? DateTime(1970);
-      return bDate.compareTo(aDate); // latest → oldest
+      return bDate.compareTo(aDate);
     });
-
-    // 5) employee map
-    final Map<String, EmployeeModel?> employeeMap = {};
-    for (var attendance in attendanceList) {
-      if (!employeeMap.containsKey(attendance.employeeNo)) {
-        final employee =
-        await employeeProvider.getEmployeeByNumber(attendance.employeeNo);
-        employeeMap[attendance.employeeNo] = employee;
-      }
-    }
 
     setState(() {
       _attendanceFuture = Future.value(attendanceList);
       _employeeMapFuture = Future.value(employeeMap);
     });
   }
+
+
 
   IconData _getActionIcon(String action) {
     switch (action) {
@@ -169,7 +225,7 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search by Employee No',
+                hintText: 'Search today by Name or Employee No',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),

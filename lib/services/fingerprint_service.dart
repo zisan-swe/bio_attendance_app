@@ -32,20 +32,37 @@ class FingerprintService {
   }
 
   /// 🔹 ফিঙ্গারপ্রিন্ট স্ক্যান → সরাসরি Base64 template string return করবে
+  // Future<String> scanFingerprint() async {
+  //   try {
+  //     final String? base64Template = await _methodChannel.invokeMethod<String>('scanFingerprint');
+  //     if (base64Template == null || base64Template.isEmpty) {
+  //       dev.log('Error: No fingerprint template received', name: 'FingerprintService');
+  //       throw FingerprintException('CAPTURE_EMPTY', 'No fingerprint template received');
+  //     }
+  //     dev.log('✅ Fingerprint Template Captured: $base64Template (length: ${base64Template.length})', name: 'FingerprintService');
+  //     return base64Template;
+  //   } on PlatformException catch (e) {
+  //     dev.log('Scan Error: ${e.code} - ${e.message}', name: 'FingerprintService');
+  //     throw FingerprintException(e.code, 'Scan failed: ${e.message}');
+  //   }
+  // }
+
   Future<String> scanFingerprint() async {
     try {
-      final String? base64Template = await _methodChannel.invokeMethod<String>('scanFingerprint');
+      final String? base64Template =
+      await _methodChannel.invokeMethod<String>('scanFingerprint');
+
       if (base64Template == null || base64Template.isEmpty) {
-        dev.log('Error: No fingerprint template received', name: 'FingerprintService');
-        throw FingerprintException('CAPTURE_EMPTY', 'No fingerprint template received');
+        throw FingerprintException('CAPTURE_EMPTY',
+            'No fingerprint template received');
       }
-      dev.log('✅ Fingerprint Template Captured: $base64Template (length: ${base64Template.length})', name: 'FingerprintService');
       return base64Template;
     } on PlatformException catch (e) {
-      dev.log('Scan Error: ${e.code} - ${e.message}', name: 'FingerprintService');
+      // CAPTURE_EMPTY/NO_DEVICE/NO_OTG ইত্যাদির জন্য UI-তে আলাদা বার্তা দেখানো যাবে
       throw FingerprintException(e.code, 'Scan failed: ${e.message}');
     }
   }
+
 
   /// 🔹 LED ON
   Future<void> ledOn() async {

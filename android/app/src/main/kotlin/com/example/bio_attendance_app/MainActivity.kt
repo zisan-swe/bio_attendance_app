@@ -77,13 +77,18 @@ class MainActivity : FlutterActivity() {
 
                     "scanFingerprint" -> {
                         if (isEmulator()) {
-                            result.error("NO_OTG", "Use a real Android device with USB-OTG.", "Emulators cannot use USB-OTG.")
+                            result.error(
+                                "NO_OTG",
+                                "Use a real Android device with USB-OTG.",
+                                "Emulators cannot use USB-OTG."
+                            )
                             return@setMethodCallHandler
                         }
+
                         scope.launch {
                             val dbg = StringBuilder()
                             try {
-                                // 1) First check current device status
+                                // 1) Device status
                                 val um = usb()
                                 dbg.appendLine("Initial device scan:")
                                 um.deviceList.values.forEach {
@@ -92,22 +97,20 @@ class MainActivity : FlutterActivity() {
 
                                 var dev = findSlk20r(um)
                                 val hasPerm = dev?.let { um.hasPermission(it) } ?: false
-
                                 dbg.appendLine("Initial SLK20R found: $dev, hasPermission: $hasPerm")
 
                                 if (dev == null) {
                                     postError(result, "NO_DEVICE", "SLK20R not detected.", dbg.toString()); return@launch
                                 }
 
+                                // 2) Request permission if needed
                                 if (!hasPerm) {
-                                    // 2) Request permission (this shows the dialog)
                                     dbg.appendLine("Requesting USB permission...")
                                     dev = withContext(Dispatchers.Main) { getDeviceWithPermission(dbg) }
                                     if (dev == null) {
                                         postError(result, "NO_DEVICE", "USB permission denied.", dbg.toString()); return@launch
                                     }
 
-                                    // 3) After permission granted, re-check the device
                                     dbg.appendLine("Permission granted, re-scanning devices...")
                                     dev = findDeviceAfterPermission(um, dbg)
                                     if (dev == null) {
@@ -116,36 +119,28 @@ class MainActivity : FlutterActivity() {
                                     dbg.appendLine("Device confirmed after permission: $dev")
                                 }
 
-                                // 4) Open/init SDK
+                                // 3) Open/init SDK
                                 ensureOpened(dev, dbg)
 
-                                // 5) Turn on LED to indicate ready state
+                                // 4) LED ON
                                 dbg.appendLine("Turning on scanner LED...")
                                 controlScannerLed(true, dbg)
 
-                                // 6) Capture with retries
-                                var bytes: ByteArray? = captureWithRetries(dbg, totalMs = 15000, perAttemptMs = 5000)
+                                // 5) Capture (template only)
+                                val tpl: ByteArray? = captureWithRetries(
+                                    dbg,
+                                    totalMs = 15_000,
+                                    perAttemptMs = 5_000
+                                )
 
-                                // 7) Turn off LED after capture attempt
+                                // 6) LED OFF
                                 controlScannerLed(false, dbg)
 
-                                if (bytes == null || bytes.isEmpty()) {
-                                    postError(result, "CAPTURE_EMPTY", "No finger image captured.", dbg.toString()); return@launch
-                                }
-
-                                // If payload looks like a template already, return as-is
-                                if (bytes.size < 2048) {
-                                    dbg.appendLine("Heuristic: payload size ${bytes.size} → treat as TEMPLATE (skip extract).")
-                                    postSuccess(result, Base64.encodeToString(bytes, Base64.NO_WRAP)); return@launch
-                                }
-
-                                // 8) Extract template from image (if needed; listener already extracts)
-                                val tpl = extractTemplate(bytes, dbg)
                                 if (tpl == null || tpl.isEmpty()) {
-                                    postError(result, "EXTRACT_FAIL", "Template extraction failed.", dbg.toString()); return@launch
+                                    postError(result, "CAPTURE_EMPTY", "No finger template captured.", dbg.toString()); return@launch
                                 }
 
-                                // 9) Return Base64 template
+                                // 7) Return Base64 template
                                 postSuccess(result, Base64.encodeToString(tpl, Base64.NO_WRAP))
                             } catch (t: Throwable) {
                                 controlScannerLed(false, dbg) // Ensure LED is off on error
@@ -250,6 +245,59 @@ class MainActivity : FlutterActivity() {
                 }
             }
     }
+
+
+    // --- USB attach/detach handler fields ---
+    private var usbReceiverRegistered = false
+
+    private val usbReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                UsbManager.ACTION_USB_DEVICE_DETACHED -> {
+                    val d = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
+                    Log.w(TAG, "USB detached: $d")
+                    // ডিভাইস ছাড়লে সব রিলিজ করে দিন
+                    releaseAll()
+                }
+                UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
+                    val d = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
+                    Log.i(TAG, "USB attached: $d")
+                    // চাইলে এখানে auto-init করবেন না; scanFingerprint কলের সময় open করলেই যথেষ্ট
+                }
+            }
+        }
+    }
+
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val filter = IntentFilter().apply {
+            addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+            addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(usbReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(usbReceiver, filter)
+        }
+        usbReceiverRegistered = true
+
+        Log.d(TAG, "USB attach/detach receiver registered")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        releaseAll()
+        scope.cancel()
+        if (usbReceiverRegistered) {
+            try { unregisterReceiver(usbReceiver) } catch (_: Throwable) {}
+            usbReceiverRegistered = false
+        }
+    }
+
 
     /* --------------------------- USB permission flow --------------------------- */
 
@@ -367,19 +415,19 @@ class MainActivity : FlutterActivity() {
         }
 
         LogHelper.setLevel(Log.DEBUG)
-        val params = HashMap<String, Any>()  // Use Any to allow Integer
-        params[ParameterHelper.PARAM_KEY_VID] = java.lang.Integer.valueOf(VID)  // Box kotlin.Int to java.lang.Integer
-        params[ParameterHelper.PARAM_KEY_PID] = java.lang.Integer.valueOf(PID)  // Box kotlin.Int to java.lang.Integer
+
+        val params = HashMap<String, Any>()
+        // ডিভাইস থেকে নেওয়া VID/PID ব্যবহার করুন
+        params[ParameterHelper.PARAM_KEY_VID] = Integer.valueOf(dev.vendorId)
+        params[ParameterHelper.PARAM_KEY_PID] = Integer.valueOf(dev.productId)
 
         fingerprintSensor = FingerprintFactory.createFingerprintSensor(this, TransportType.USB, params)
         if (fingerprintSensor == null) throw RuntimeException("Factory failed")
 
-        dbg.appendLine("FingerprintSensor created")
-
+        dbg.appendLine("FingerprintSensor created (VID=0x${dev.vendorId.toString(16)}, PID=0x${dev.productId.toString(16)})")
         try {
             fingerprintSensor!!.open(0)
             dbg.appendLine("Opened with index=0")
-
             val sn = fingerprintSensor!!.strSerialNumber
             val fw = fingerprintSensor!!.firmwareVersion
             dbg.appendLine("Device SN: $sn, Firmware: $fw")
@@ -389,7 +437,7 @@ class MainActivity : FlutterActivity() {
         }
 
         try {
-            fingerprintSensor!!.setFakeFunOn(1)
+            fingerprintSensor!!.setFakeFunOn(1) // anti-fake/LED on
             dbg.appendLine("Anti-fake enabled")
         } catch (e: Exception) {
             dbg.appendLine("setFakeFunOn failed: ${e.message}")
@@ -397,80 +445,85 @@ class MainActivity : FlutterActivity() {
     }
 
     /** Direct async capture with listener (Sec 3.1.3-3.1.5) */
+    /** বহুবার রিট্রাই সহ ক্যাপচার: প্রতি চেষ্টা perAttemptMs, মোট সময় totalMs */
     private fun captureWithRetries(dbg: StringBuilder, totalMs: Int, perAttemptMs: Int): ByteArray? {
         val sensor = fingerprintSensor ?: return null
         val deadline = System.currentTimeMillis() + totalMs
-        var capturedImage: ByteArray? = null
-        var capturedTemplate: ByteArray? = null
+        var lastErr: String? = null
 
-        val listener = object : FingerprintCaptureListener {
-            override fun captureOK(fpImage: ByteArray) {
-                capturedImage = fpImage
-                Log.i(TAG, "captureOK: ${fpImage.size} bytes image")
-                dbg.appendLine("captureOK: ${fpImage.size} bytes image")
-                // Optional: Log width/height
-                Log.i(TAG, "Image: width=${sensor.imageWidth}, height=${sensor.imageHeight}")
-            }
-            override fun captureError(e: FingerprintException) {
-                Log.e(TAG, "captureError: ${e.errorCode} - ${e.message}")
-                dbg.appendLine("captureError: ${e.errorCode} - ${e.message}")
-            }
-            override fun extractOK(fpTemplate: ByteArray) {
-                capturedTemplate = fpTemplate
-                Log.i(TAG, "extractOK: ${fpTemplate.size} bytes template")
-                dbg.appendLine("extractOK: ${fpTemplate.size} bytes template")
-            }
-            override fun extractError(errno: Int) {
-                Log.e(TAG, "extractError: $errno")
-                dbg.appendLine("extractError: $errno (see Appendix I for codes)")
-            }
-        }
-
-        try {
-            sensor.setFingerprintCaptureListener(0, listener)  // Exact: index=0
-            sensor.startCapture(0)  // Exact: starts async, triggers listener
-            dbg.appendLine("setFingerprintCaptureListener(0) & startCapture(0) called")
-
-            // Poll for result with latch
+        while (System.currentTimeMillis() < deadline) {
+            var capturedTemplate: ByteArray? = null
             val latch = CountDownLatch(1)
-            val timeoutLatch = Thread {
-                try {
-                    Thread.sleep(perAttemptMs.toLong())
-                } catch (_: InterruptedException) {}
-                if (latch.count > 0) latch.countDown()
+
+            val listener = object : FingerprintCaptureListener {
+                override fun captureOK(fpImage: ByteArray) {
+                    // শুধু লগ করুন; template এর জন্য extractOK অপেক্ষা করব
+                    dbg.appendLine("captureOK: ${fpImage.size} bytes (w=${sensor.imageWidth}, h=${sensor.imageHeight})")
+                }
+
+                override fun captureError(e: FingerprintException) {
+                    lastErr = "captureError: ${e.errorCode} - ${e.message}"
+                    dbg.appendLine(lastErr!!)
+                    latch.countDown()
+                }
+
+                override fun extractOK(fpTemplate: ByteArray) {
+                    capturedTemplate = fpTemplate
+                    dbg.appendLine("extractOK (listener): ${fpTemplate.size} bytes")
+                    latch.countDown()
+                }
+
+                override fun extractError(errno: Int) {
+                    lastErr = "extractError: $errno"
+                    dbg.appendLine(lastErr!!)
+                    latch.countDown()
+                }
             }
-            timeoutLatch.start()
 
-            latch.await()
-            timeoutLatch.join()
+            try {
+                sensor.setFingerprintCaptureListener(0, listener)
+                sensor.startCapture(0)
+                dbg.appendLine("startCapture(0)")
 
-            sensor.stopCapture(0)
-            dbg.appendLine("stopCapture(0) called")
-
-            // Prioritize template; fallback to image
-            return capturedTemplate?.takeIf { it.isNotEmpty() } ?: capturedImage?.takeIf { it.isNotEmpty() }
-            ?: run {
-                dbg.appendLine("No data in listener callbacks")
-                null
+                // এই চেষ্টার টাইমআউট
+                if (!latch.await(perAttemptMs.toLong(), TimeUnit.MILLISECONDS)) {
+                    dbg.appendLine("attempt timeout ($perAttemptMs ms)")
+                }
+            } catch (e: FingerprintException) {
+                lastErr = "Capture exception: ${e.errorCode} - ${e.message}"
+                dbg.appendLine(lastErr!!)
+            } finally {
+                try { sensor.stopCapture(0); dbg.appendLine("stopCapture(0)") } catch (_: Throwable) {}
+                // পরের রিট্রাইয়ের আগে লিসেনার ক্লিয়ার
+                try { sensor.setFingerprintCaptureListener(0, null) } catch (_: Throwable) {}
             }
-        } catch (e: FingerprintException) {
-            dbg.appendLine("Capture exception: ${e.errorCode} - ${e.message}")
-            return null
+
+            // শুধুই template গ্রহণযোগ্য; পেলেই রিটার্ন করুন
+            if (capturedTemplate != null && capturedTemplate!!.isNotEmpty()) {
+                return capturedTemplate
+            }
+
+            // ছোট বিরতি দিয়ে পরের চেষ্টা
+            Thread.sleep(250)
         }
+
+        dbg.appendLine("No template captured within $totalMs ms. Last error: $lastErr")
+        return null
     }
+
 
     /** Extract template via ZKFingerService if image provided */
-    private fun extractTemplate(imageBytes: ByteArray, dbg: StringBuilder): ByteArray? {
-        return try {
-            // SDK listener handles extractOK; fallback quality check
-            val quality = ZKFingerService.getTemplateQuality(imageBytes)
-            dbg.appendLine("Template quality: $quality")
-            imageBytes  // Fallback to image
-        } catch (e: Exception) {
-            dbg.appendLine("Extract failed: ${e.message}")
-            null
-        }
-    }
+//    private fun extractTemplate(imageBytes: ByteArray, dbg: StringBuilder): ByteArray? {
+//        return try {
+//            // SDK listener handles extractOK; fallback quality check
+//            val quality = ZKFingerService.getTemplateQuality(imageBytes)
+//            dbg.appendLine("Template quality: $quality")
+//            imageBytes  // Fallback to image
+//        } catch (e: Exception) {
+//            dbg.appendLine("Extract failed: ${e.message}")
+//            null
+//        }
+//    }
 
     /** Control scanner LED via anti-fake (Sec 3.1.10-3.1.11) */
     private fun controlScannerLed(enabled: Boolean, dbg: StringBuilder) {
@@ -546,11 +599,11 @@ class MainActivity : FlutterActivity() {
         return sb.toString()
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        releaseAll()
-        scope.cancel()
-    }
+    //    override fun onDestroy() {
+//        super.onDestroy()
+//        releaseAll()
+//        scope.cancel()
+//    }
 
 //    private fun matchFingerprint(newTemplate: ByteArray, storedTemplate: ByteArray): Boolean {
 //        try {

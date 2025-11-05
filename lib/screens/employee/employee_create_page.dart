@@ -25,6 +25,8 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
   final _formKey = GlobalKey<FormState>();
   final picker = ImagePicker();
   final _fingerSvc = FingerprintService();
+  bool _saving = false;
+
 
   // Controllers
   final nameController = TextEditingController();
@@ -463,9 +465,74 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     return employeeId;
   }
 
-  Future<void> _save() async {
-    if (_formKey.currentState!.validate()) {
+  void _showRequiredFieldsDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // force user to tap OK
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+          contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+          actionsPadding: const EdgeInsets.only(right: 16, bottom: 8),
+          title: Row(
+            children: const [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 30),
+              SizedBox(width: 10),
+              Text(
+                'Incomplete Form',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Please fill in all required fields marked with (*) before saving.',
+            style: TextStyle(
+              fontSize: 16,
+              height: 1.4,
+            ),
+          ),
+          actions: [
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: Colors.blueGrey,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () => Navigator.pop(context),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: Text(
+                  'OK, Got it',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
+
+
+  Future<void> _save() async {
+    // ফর্ম ভ্যালিডেশন—ফেল করলে পপআপ
+    final isValid = _formKey.currentState!.validate();
+    if (!isValid) {
+      _showRequiredFieldsDialog(); // <- পপআপ
+      return;
+    }
+
+    setState(() => _saving = true); // Loader ON
+    try {
       // 🔎 Duplicate employeeNo guard
       final empNo = codeController.text.trim();
       if (await _employeeNoExists(empNo)) {
@@ -482,8 +549,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
       if (await _hasDuplicateFingerInDB()) return;
 
       final provider = Provider.of<EmployeeProvider>(context, listen: false);
-      final dailyWages =
-          double.tryParse(dailyWagesController.text.trim()) ?? 0.0;
+      final dailyWages = double.tryParse(dailyWagesController.text.trim()) ?? 0.0;
 
       final setting = await DatabaseHelper.instance.getSettingBySlug('company_id');
       final companyId = int.tryParse(setting?.value ?? '') ?? 1;
@@ -494,7 +560,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
         id: widget.employee?.id,
         name: nameController.text.trim(),
         email: emailController.text.trim(),
-        employeeNo: empNo, // <- use trimmed ID
+        employeeNo: empNo,
         nid: nidController.text.trim(),
         dailyWages: dailyWages,
         phone: phoneController.text.trim(),
@@ -534,7 +600,9 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
         );
       }
 
-      Navigator.pop(context, true);
+      if (mounted) Navigator.pop(context, true);
+    } finally {
+      if (mounted) setState(() => _saving = false); // Loader OFF
     }
   }
 
@@ -851,9 +919,14 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: _save,
-                      icon: const Icon(Icons.save),
-                      label: const Text('Save Employee'),
+                      onPressed: _saving ? null : _save,
+                      icon: _saving
+                          ? const SizedBox(
+                        height: 20, width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                          : const Icon(Icons.save),
+                      label: Text(_saving ? 'Saving...' : 'Save Employee'),
                       style: ElevatedButton.styleFrom(
                         minimumSize: const Size(double.infinity, 48),
                       ),

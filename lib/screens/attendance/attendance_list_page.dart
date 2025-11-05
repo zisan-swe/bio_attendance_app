@@ -306,9 +306,9 @@ class _AttendanceListPageState extends State<AttendanceListPage> {
                             Text(
                                 '${attendance.attendanceStatus} • ${_dateFormat.format(DateTime.parse(attendance.workingDate))}'),
                             if (attendance.inTime.isNotEmpty)
-                              Text('In: ${attendance.inTime}'),
+                              Text('In Time: ${attendance.inTime}'),
                             if (attendance.outTime.isNotEmpty)
-                              Text('Out: ${attendance.outTime}'),
+                              Text('Out Time: ${attendance.outTime}'),
                             if (attendance.fingerprint.isNotEmpty)
                               Row(
                                 children: [

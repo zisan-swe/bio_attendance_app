@@ -33,20 +33,6 @@ class _AttendancePageState extends State<AttendancePage> {
   int _pending = 0;
   DateTime _nextAutoSyncAllowed = DateTime.fromMillisecondsSinceEpoch(0);
 
-  // Which finger button is active
-  final Map<String, bool> fingerScanStatus = {
-    'Left Thumb': false,
-    'Right Thumb': false,
-    'Left Index': false,
-    'Right Index': false,
-    'Left Middle': false,
-    'Right Middle': false,
-    'Left Ring': false,
-    'Right Ring': false,
-    'Left Little': false,
-    'Right Little': false,
-  };
-
   // Formats
   static final _timeFormat = DateFormat('hh:mm:ss a');
   static final _dateFormat = DateFormat('EEEE, MMMM d');
@@ -108,7 +94,48 @@ class _AttendancePageState extends State<AttendancePage> {
     });
   }
 
-  Future<void> _startFingerprintScan() async {
+  Future<String> _detectFingerLabel({
+    required String employeeNo,
+    required String scannedTemplate,
+  }) async {
+    // 1) ঐ এমপ্লয়ির সব এনরোল করা ফিঙ্গার টেমপ্লেট নাও
+    final attendanceProvider = context.read<AttendanceProvider>();
+    final enrolled = await attendanceProvider.getEnrolledFingerprints(
+      employeeNo: employeeNo,
+    ); // Map<String, List<String>>
+
+    // 2) ফ্ল্যাটেন: ফিঙ্গার লেবেল ও টেমপ্লেট লিস্ট আলাদা করা
+    final List<String> labels = [];
+    final List<String> templates = [];
+    enrolled.forEach((finger, list) {
+      for (final t in list) {
+        if (t.isNotEmpty) {
+          labels.add(finger);
+          templates.add(t);
+        }
+      }
+    });
+
+    if (templates.isEmpty) return 'Fingerprint'; // fallback
+
+    // 3) নেটিভ verifyFingerprint কল — (MainActivity.kt এ ইতোমধ্যে হয়েছে)
+    final res = await FingerprintService.verifyFingerprint(
+      scannedTemplate: scannedTemplate,
+      storedTemplates: templates,
+    );
+
+    final matched = (res['matched'] as bool?) ?? false;
+    final idx = res['matchedEmployeeId'] as int?;
+
+    if (matched && idx != null && idx >= 0 && idx < labels.length) {
+      return labels[idx]; // যেমন 'Left Thumb'
+    }
+
+    return 'Fingerprint'; // fallback
+  }
+
+
+  Future<void> _startFingerprintScanAndSave() async {
     if (isScanning) return;
     setState(() => isScanning = true);
 
@@ -145,16 +172,29 @@ class _AttendancePageState extends State<AttendancePage> {
       return;
     }
 
-    // Which finger label user tapped (for saving label only)
-    final selectedFinger = fingerScanStatus.entries
-        .firstWhere((e) => e.value, orElse: () => const MapEntry('Left Thumb', true))
-        .key;
+    // ✅ এখানে কোন ফিঙ্গারটা ম্যাচ করেছে সেটা বের করি
+    String matchedFingerLabel = 'Fingerprint';
+    try {
+      matchedFingerLabel = await _detectFingerLabel(
+        employeeNo: employee.employeeNo,
+        scannedTemplate: scannedTemplate,
+      );
+    } catch (_) {
+      // চুপচাপ fallback থাকবে 'Fingerprint'
+    }
 
-    await _saveAndMaybeSync(employee, selectedFinger);
+// আগে যেটা ছিল: await _saveAndMaybeSync(employee, 'Fingerprint');
+// বদলে:
+    await _saveAndMaybeSync(employee, matchedFingerLabel);
+
+    // Finger label আর দরকার নেই—একীভূত “Fingerprint” লেবেল রাখছি
+    // await _saveAndMaybeSync(employee, 'Fingerprint');
   }
 
   Future<void> _saveAndMaybeSync(
-      EmployeeModel employee, String selectedFinger) async {
+      EmployeeModel employee,
+      String fingerprintLabel,
+      ) async {
     final now = DateTime.now().toUtc().add(const Duration(hours: 6));
     final time = _timeLogFormat.format(now);
     final date = _dateLogFormat.format(now);
@@ -181,7 +221,7 @@ class _AttendancePageState extends State<AttendancePage> {
       outTime:
       (selectedAction == 'Check Out' || selectedAction == 'Break Out') ? time : '',
       location: safeLocation,
-      fingerprint: selectedFinger,
+      fingerprint: fingerprintLabel, // unified label
       status: 'Regular',
       remarks: '',
       createAt: now.toIso8601String(),
@@ -191,11 +231,11 @@ class _AttendancePageState extends State<AttendancePage> {
 
     final attendanceProvider = context.read<AttendanceProvider>();
 
-    // 1) Always save locally first (synced = 0)
+    // 1) Save locally first
     final localId = await attendanceProvider.insertAttendance(attendance);
     await _refreshPending();
 
-    // 2) Try to sync (if online). If offline (SocketException), keep offline silently.
+    // 2) Try to sync
     try {
       final message = await ApiService.createAttendance(attendance);
       final ok = message.toLowerCase().contains('success');
@@ -209,10 +249,8 @@ class _AttendancePageState extends State<AttendancePage> {
         _showSnack('⚠️ $message', isError: true);
       }
     } on SocketException {
-      // Offline: keep local, show friendly info
       _showSnack('📴 Saved locally (offline). Will sync when online.');
     } catch (e) {
-      // Other server error: keep local pending
       _showSnack('⚠️ Saved locally. Sync pending. ($e)', isError: true);
     } finally {
       if (mounted) setState(() => isScanning = false);
@@ -232,6 +270,17 @@ class _AttendancePageState extends State<AttendancePage> {
   // ------------------- UI -------------------
   @override
   Widget build(BuildContext context) {
+    final bigButtonChild = isScanning
+        ? const SizedBox(
+      height: 24,
+      width: 24,
+      child: CircularProgressIndicator(strokeWidth: 2),
+    )
+        : const Text(
+      'Scan & Save',
+      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Attendance'),
@@ -257,14 +306,16 @@ class _AttendancePageState extends State<AttendancePage> {
                     right: -2,
                     top: -2,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                       decoration: BoxDecoration(
                         color: Colors.redAccent,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
                         '$_pending',
-                        style: const TextStyle(fontSize: 10, color: Colors.white),
+                        style:
+                        const TextStyle(fontSize: 10, color: Colors.white),
                       ),
                     ),
                   ),
@@ -324,33 +375,60 @@ class _AttendancePageState extends State<AttendancePage> {
                 ),
               ),
               const SizedBox(height: 30),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                alignment: WrapAlignment.center,
-                children: [
-                  _buildRadioButton('Check In'),
-                  _buildRadioButton('Check Out'),
-                  _buildRadioButton('Break In'),
-                  _buildRadioButton('Break Out'),
-                ],
-              ),
-              const SizedBox(height: 30),
+
+              // Action selector
+              // Action selector – দুই রোতে ভাগ করা
               Column(
                 children: [
-                  _buildFingerRow('Left Thumb', 'Right Thumb'),
-                  _buildFingerRow('Left Index', 'Right Index'),
-                  _buildFingerRow('Left Middle', 'Right Middle'),
-                  _buildFingerRow('Left Ring', 'Right Ring'),
-                  _buildFingerRow('Left Little', 'Right Little'),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildActionChip('Check In'),
+                      const SizedBox(width: 18),
+                      _buildActionChip('Check Out'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildActionChip('Break In'),
+                      const SizedBox(width: 18),
+                      _buildActionChip('Break Out'),
+                    ],
+                  ),
                 ],
               ),
+
+
               const SizedBox(height: 30),
-              if (isScanning)
-                const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: CircularProgressIndicator(),
+
+              // Single primary button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: isScanning ? null : _startFingerprintScanAndSave,
+                  icon: const Icon(Icons.fingerprint),
+                  label: bigButtonChild,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
                 ),
+              ),
+
+              const SizedBox(height: 12),
+              Text(
+                'Selected: $selectedAction',
+                style: TextStyle(
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+
+              const SizedBox(height: 30),
             ],
           ),
         ),
@@ -358,84 +436,23 @@ class _AttendancePageState extends State<AttendancePage> {
     );
   }
 
-  Widget _buildRadioButton(String action) {
+  Widget _buildActionChip(String action) {
     final isSelected = selectedAction == action;
-    return SizedBox(
-      width: 130,
-      height: 50,
-      child: GestureDetector(
-        onTap: () => setState(() => selectedAction = action),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.green : Colors.grey[400],
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(
-              color: isSelected ? Colors.green : Colors.transparent,
-              width: 2,
-            ),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            action,
-            style: const TextStyle(
-              fontSize: 16,
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+    return FilterChip(
+      selected: isSelected,
+      onSelected: (_) => setState(() => selectedAction = action),
+      label: Text(
+        action,
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: isSelected ? Colors.white : Colors.black87,
         ),
       ),
-    );
-  }
-
-  Widget _buildFinger(String fingerName) {
-    final isScanned = fingerScanStatus[fingerName] ?? false;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final buttonWidth = (screenWidth - 64 - 16) / 2;
-
-    return SizedBox(
-      width: buttonWidth,
-      height: 50,
-      child: ElevatedButton(
-        onPressed: isScanning
-            ? null
-            : () async {
-          setState(() {
-            fingerScanStatus.updateAll((key, value) => false);
-            fingerScanStatus[fingerName] = true;
-          });
-          await _startFingerprintScan();
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isScanned ? Colors.green : Colors.grey[300],
-          foregroundColor: isScanned ? Colors.white : Colors.black,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          elevation: 2,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-        ),
-        child: Text(
-          fingerName,
-          style: const TextStyle(fontSize: 13),
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFingerRow(String leftFinger, String rightFinger) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildFinger(leftFinger),
-          const SizedBox(width: 16),
-          _buildFinger(rightFinger),
-        ],
-      ),
+      selectedColor: Colors.green,
+      checkmarkColor: Colors.white,
+      backgroundColor: Colors.grey[300],
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     );
   }
 }

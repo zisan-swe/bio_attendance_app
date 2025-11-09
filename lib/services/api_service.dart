@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../db/database_helper.dart';
 import '../models/attendance_model.dart';
+import '../models/department_model.dart';
 import '../models/employee_model.dart';
+import '../models/shift_model.dart';
 import '../providers/employee_provider.dart';
 import 'dart:io';
 
@@ -329,5 +331,41 @@ class ApiService {
     }
   }
 
+  // ✅ Fetch Departments
+  static Future<List<Department>> fetchDepartmentsByCompany(int companyId) async {
+    final uri = Uri.parse('$baseUrl/department-list/$companyId');
+    final res = await http.get(uri, headers: {'Accept': 'application/json'});
+
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final data = jsonDecode(res.body);
+      final list = data is List ? data : (data is Map && data['data'] is List
+          ? data['data']
+          : []);
+      return List<Department>.from(
+        (list as List).map((e) =>
+            Department.fromJson(e as Map<String, dynamic>)),
+      );
+    }
+    throw Exception('Departments fetch failed: ${res.statusCode} ${res.body}');
+  }
+
+  // ✅ Fetch Shift List by company_id
+  static Future<List<Shift>> fetchShiftsByCompany(int companyId) async {
+    final uri = Uri.parse('$baseUrl/shift-list?company_id=$companyId');
+    final res = await http.get(uri, headers: {'Accept': 'application/json'});
+
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final data = jsonDecode(res.body);
+
+      final list = data is List
+          ? data
+          : (data is Map && data['data'] is List ? data['data'] : []);
+
+      return List<Shift>.from(
+        (list as List).map((e) => Shift.fromJson(e as Map<String, dynamic>)),
+      );
+    }
+    throw Exception('Shift fetch failed: ${res.statusCode} ${res.body}');
+  }
 
 }

@@ -28,7 +28,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 16, // শুধু version বাড়ান
+      version: 17,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -62,7 +62,13 @@ class DatabaseHelper {
         finger_info8 TEXT,
         finger_info9 TEXT,
         finger_info10 TEXT,
-        image_path TEXT
+        image_path TEXT,
+        department_id INTEGER,
+        shift_id INTEGER,
+        role_in_project TEXT,   -- "supervisor" | "worker"
+        project_id INTEGER,
+        block_id INTEGER
+        
       )
     ''');
 
@@ -167,6 +173,28 @@ class DatabaseHelper {
       ''');
       await db.execute('DROP TABLE settings_old');
     }
+
+    // _onUpgrade এর ভিতরে শেষে যোগ করুন
+    if (oldVersion < 17) {
+      final cols = (await db.rawQuery('PRAGMA table_info(employee)'))
+          .map((c) => c['name'] as String?)
+          .whereType<String>()
+          .toSet();
+
+      Future<void> addCol(String name, String ddl) async {
+        if (!cols.contains(name)) {
+          await db.execute('ALTER TABLE employee ADD COLUMN $name $ddl');
+          dev.log('✅ Added $name to employee', name: 'DatabaseHelper');
+        }
+      }
+
+      await addCol('department_id', 'INTEGER');
+      await addCol('shift_id', 'INTEGER');
+      await addCol('role_in_project', 'TEXT');
+      await addCol('project_id', 'INTEGER');
+      await addCol('block_id', 'INTEGER');
+    }
+
   }
 
   // ---------------- Employee CRUD ----------------

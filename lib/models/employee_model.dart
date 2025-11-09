@@ -25,6 +25,11 @@ class EmployeeModel {
   final String fingerInfo9;
   final String fingerInfo10;
   final String imagePath;
+  final int? departmentId;
+  final int? shiftId;
+  final String? roleInProject; // "supervisor" | "worker"
+  final int? projectId;
+  final int? blockId;
 
   EmployeeModel({
     this.id,
@@ -51,6 +56,11 @@ class EmployeeModel {
     required this.fingerInfo9,
     required this.fingerInfo10,
     required this.imagePath,
+    this.departmentId,
+    this.shiftId,
+    this.roleInProject,
+    this.projectId,
+    this.blockId,
   });
 
   /// --- From SQLite Row ---
@@ -80,6 +90,11 @@ class EmployeeModel {
       fingerInfo9: map['finger_info9'] as String? ?? '',
       fingerInfo10: map['finger_info10'] as String? ?? '',
       imagePath: map['image_path'] as String? ?? '',
+      departmentId: map['department_id'] as int?,
+      shiftId: map['shift_id'] as int?,
+      roleInProject: map['role_in_project'] as String?,
+      projectId: map['project_id'] as int?,
+      blockId: map['block_id'] as int?,
     );
   }
 
@@ -179,6 +194,11 @@ class EmployeeModel {
       'finger_info9': fingerInfo9,
       'finger_info10': fingerInfo10,
       'image_path': imagePath,
+      'department_id': departmentId,
+      'shift_id': shiftId,
+      'role_in_project': roleInProject,
+      'project_id': projectId,
+      'block_id': blockId,
     };
   }
 
@@ -209,6 +229,12 @@ class EmployeeModel {
       'finger_info9': fingerInfo9,
       'finger_info10': fingerInfo10,
       'image_path': imagePath,
+      'department_id': departmentId,
+      'shift_id': shiftId,
+      'role_in_project': roleInProject,
+      'project_id': projectId,
+      'block_id': blockId,
+
     };
   }
 
@@ -238,6 +264,8 @@ class EmployeeModel {
     String? fingerInfo9,
     String? fingerInfo10,
     String? imagePath,
+    int? departmentId,
+    int? shiftId,
   }) {
     return EmployeeModel(
       id: id ?? this.id,
@@ -264,6 +292,8 @@ class EmployeeModel {
       fingerInfo9: fingerInfo9 ?? this.fingerInfo9,
       fingerInfo10: fingerInfo10 ?? this.fingerInfo10,
       imagePath: imagePath ?? this.imagePath,
+      departmentId: departmentId ?? this.departmentId,
+      shiftId: shiftId ?? this.shiftId,
     );
   }
 }

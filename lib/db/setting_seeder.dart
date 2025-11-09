@@ -44,12 +44,12 @@ class SettingSeeder extends StatelessWidget {
       final dummySettings = [
         {
           'name': 'Project Code',
-          'value': '10',
+          'value': '',
           'slug': 'project_id',
         },
         {
           'name': 'Block',
-          'value': '2',
+          'value': '',
           'slug': 'block_id',
         },
         {

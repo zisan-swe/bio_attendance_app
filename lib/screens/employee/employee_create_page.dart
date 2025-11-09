@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+
 import '../../models/employee_model.dart';
+import '../../models/department_model.dart'; // <-- add
+import '../../models/shift_model.dart'; // <-- add
 import '../../providers/employee_provider.dart';
 import '../../services/fingerprint_service.dart';
 import '../../services/api_service.dart';
@@ -27,6 +29,16 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
   final _fingerSvc = FingerprintService();
   bool _saving = false;
 
+  // lookups
+  List<Department> _departments = [];
+  List<Shift> _shifts = [];
+  bool _loadingLookups = true;
+  String? _lookupError;
+
+  // selections
+  int? _selectedDepartmentId;
+  int? _selectedShiftId;
+  String? _selectedRole; // <-- NEW
 
   // Controllers
   final nameController = TextEditingController();
@@ -42,8 +54,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
 
   File? _profileImage;
 
-  /// Every finger stores up to 5 samples (templates).
-  /// We'll persist as JSON strings into finger_info1..10.
+  /// Every finger stores templates JSON in finger_info1..10.
   Map<String, List<String>> fingerTemplates = {};
 
   @override
@@ -76,6 +87,12 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
       motherController.text = emp.motherName;
       dobController.text = emp.dob;
       joiningController.text = emp.joiningDate;
+
+      // If your model already has departmentId/shiftId, preselect:
+      try {
+        _selectedDepartmentId = emp.departmentId;
+        _selectedShiftId = emp.shiftId;
+      } catch (_) {}
 
       if (emp.imagePath.isNotEmpty) {
         _profileImage = File(emp.imagePath);
@@ -113,15 +130,18 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     } else {
       fingerTemplates = emptyMap;
 
-      // 🧠 Auto-generate new Employee ID
+      // Auto-generate new Employee ID (if you want to show an auto ID)
       generateSequentialEmployeeId().then((newId) {
-        setState(() {
-          codeController.text = newId;
-        });
+        if (mounted) {
+          setState(() {
+            codeController.text = newId;
+          });
+        }
       });
     }
+    _selectedRole = 'worker';
+    _loadLookups();
   }
-
 
   @override
   void dispose() {
@@ -151,7 +171,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                 onTap: () async {
                   Navigator.pop(context);
                   final pickedFile =
-                  await picker.pickImage(source: ImageSource.camera);
+                      await picker.pickImage(source: ImageSource.camera);
                   if (pickedFile != null) {
                     setState(() {
                       _profileImage = File(pickedFile.path);
@@ -165,7 +185,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                 onTap: () async {
                   Navigator.pop(context);
                   final pickedFile =
-                  await picker.pickImage(source: ImageSource.gallery);
+                      await picker.pickImage(source: ImageSource.gallery);
                   if (pickedFile != null) {
                     setState(() {
                       _profileImage = File(pickedFile.path);
@@ -180,10 +200,33 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     );
   }
 
+  Future<void> _loadLookups() async {
+    try {
+      final setting =
+          await DatabaseHelper.instance.getSettingBySlug('company_id');
+      final companyId = int.tryParse(setting?.value ?? '') ?? 1;
+
+      final dep = await ApiService.fetchDepartmentsByCompany(companyId);
+      final shf = await ApiService.fetchShiftsByCompany(companyId);
+
+      // If editing, we used model's preset above; otherwise keep null
+      setState(() {
+        _departments = dep;
+        _shifts = shf;
+        _loadingLookups = false;
+        _lookupError = null;
+      });
+    } catch (e) {
+      setState(() {
+        _loadingLookups = false;
+        _lookupError = e.toString();
+      });
+    }
+  }
+
   Future<bool> _employeeNoExists(String employeeNo) async {
     final trimmed = employeeNo.trim();
     if (trimmed.isEmpty) return false;
-
     final existing = await DatabaseHelper.instance.getEmployeeByNumber(trimmed);
 
     // If creating new: any existing means duplicate
@@ -195,7 +238,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     return existing != null && existing.id != widget.employee!.id;
   }
 
-
+  /// One-sample enrollment (kept simple)
   /// Full-screen enrollment dialog for a single finger (auto-capture).
   /// - Automatically captures up to 5 samples (no Start/Capture buttons)
   /// - Shows duplicate/error SnackBars INSIDE the popup
@@ -243,7 +286,8 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                             '⚠️ Duplicate! Already registered to ${existing.name} (ID: ${existing.employeeNo}).',
                           ),
                           behavior: SnackBarBehavior.floating,
-                          margin: const EdgeInsets.fromLTRB(16, 16, 16, 0), // top
+                          margin:
+                              const EdgeInsets.fromLTRB(16, 16, 16, 0), // top
                           dismissDirection: DismissDirection.up,
                           showCloseIcon: true,
                           backgroundColor: const Color(0xFFB00020),
@@ -264,7 +308,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                     setStateSB(() {
                       step = list.length;
                       statusText =
-                      'Captured $step/$totalSamples • lift & place again';
+                          'Captured $step/$totalSamples • lift & place again';
                     });
                   }
 
@@ -279,7 +323,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                     // Empty capture হলে SnackBar নয়, inline hint
                     setStateSB(() {
                       statusText =
-                      'No image detected • press firmly and cover the sensor';
+                          'No image detected • press firmly and cover the sensor';
                     });
                   } else {
                     // অন্য error হলে থ্রটল করা SnackBar
@@ -289,7 +333,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                           content: Text('⚠️ Capture failed: $msg'),
                           behavior: SnackBarBehavior.floating,
                           margin:
-                          const EdgeInsets.fromLTRB(16, 16, 16, 0), // top
+                              const EdgeInsets.fromLTRB(16, 16, 16, 0), // top
                           dismissDirection: DismissDirection.up,
                           showCloseIcon: true,
                         ),
@@ -373,8 +417,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                                 children: List.generate(5, (i) {
                                   final filled = i < step;
                                   return AnimatedContainer(
-                                    duration:
-                                    const Duration(milliseconds: 250),
+                                    duration: const Duration(milliseconds: 250),
                                     margin: const EdgeInsets.symmetric(
                                         horizontal: 6),
                                     width: 14,
@@ -391,8 +434,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                               const SizedBox(height: 10),
                               Text(
                                 'Sample $step/5',
-                                style:
-                                const TextStyle(color: Colors.white70),
+                                style: const TextStyle(color: Colors.white70),
                               ),
                             ],
                           ),
@@ -414,8 +456,6 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     if (cancelled) return;
     setState(() {}); // refresh finger buttons state after dialog closes
   }
-
-
 
   /// Final duplicate check across all captured templates before save.
   Future<bool> _hasDuplicateFingerInDB() async {
@@ -442,33 +482,22 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     final now = DateTime.now();
     final prefs = await SharedPreferences.getInstance();
 
-    // আগের সংরক্ষিত কাউন্টার পড়া
     int lastNumber = prefs.getInt('employee_counter') ?? 0;
-
-    // এক বাড়ানো
     lastNumber++;
-
-    // নতুন কাউন্টার সংরক্ষণ
     await prefs.setInt('employee_counter', lastNumber);
 
-    // তারিখ ও সময় অংশ (YYYYMMDD)
     final datePart = "${now.year}"
         "${now.month.toString().padLeft(2, '0')}"
         "${now.day.toString().padLeft(2, '0')}";
-
-    // ৫-ডিজিটে প্যাড করা সংখ্যা
     final countPart = lastNumber.toString().padLeft(5, '0');
-
-    // চূড়ান্ত ID
     final employeeId = "EMP${datePart}_$countPart";
-
     return employeeId;
   }
 
   void _showRequiredFieldsDialog() {
     showDialog(
       context: context,
-      barrierDismissible: false, // force user to tap OK
+      barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
@@ -521,41 +550,52 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     );
   }
 
-
-
   Future<void> _save() async {
-    // ফর্ম ভ্যালিডেশন—ফেল করলে পপআপ
+    // form validation (dropdowns included)
     final isValid = _formKey.currentState!.validate();
     if (!isValid) {
-      _showRequiredFieldsDialog(); // <- পপআপ
+      _showRequiredFieldsDialog();
       return;
     }
 
     setState(() => _saving = true); // Loader ON
     try {
-      // 🔎 Duplicate employeeNo guard
+      // Duplicate guard
       final empNo = codeController.text.trim();
       if (await _employeeNoExists(empNo)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('❌ Employee ID already exists. Please use a different ID.'),
+            content: Text(
+                '❌ Employee ID already exists. Please use a different ID.'),
             behavior: SnackBarBehavior.floating,
           ),
         );
         return;
       }
 
-      // Block save if any duplicate fingerprint exists
+      // Stop if any dup fingerprint
       if (await _hasDuplicateFingerInDB()) return;
 
       final provider = Provider.of<EmployeeProvider>(context, listen: false);
-      final dailyWages = double.tryParse(dailyWagesController.text.trim()) ?? 0.0;
+      final dailyWages =
+          double.tryParse(dailyWagesController.text.trim()) ?? 0.0;
 
-      final setting = await DatabaseHelper.instance.getSettingBySlug('company_id');
-      final companyId = int.tryParse(setting?.value ?? '') ?? 1;
+      // company id from settings
+      final companySetting =
+          await DatabaseHelper.instance.getSettingBySlug('company_id');
+      final companyId = int.tryParse(companySetting?.value ?? '') ?? 1;
+
+      // ✅ Project/Block from settings — read BEFORE building the model
+      final projectSetting =
+          await DatabaseHelper.instance.getSettingBySlug('project_id');
+      final blockSetting =
+          await DatabaseHelper.instance.getSettingBySlug('block_id');
+      final int projectId = int.tryParse(projectSetting?.value ?? '') ?? 0;
+      final int blockId = int.tryParse(blockSetting?.value ?? '') ?? 0;
 
       String enc(String key) => jsonEncode(fingerTemplates[key] ?? const []);
 
+      // Build local model
       final employee = EmployeeModel(
         id: widget.employee?.id,
         name: nameController.text.trim(),
@@ -581,20 +621,39 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
         fingerInfo9: enc('Right Ring'),
         fingerInfo10: enc('Right Little'),
         imagePath: _profileImage?.path ?? '',
+        // newly added local fields
+        departmentId: _selectedDepartmentId,
+        shiftId: _selectedShiftId,
+        roleInProject: _selectedRole, // "supervisor" | "worker"
+        projectId: projectId,
+        blockId: blockId,
       );
 
+      // Save locally
       if (widget.employee == null) {
         await provider.addEmployee(employee);
       } else {
         await provider.updateEmployee(employee);
       }
 
+      // Build API body (খালি / 0 হলে বাদ দিন)
+      final Map<String, dynamic> body = {
+        ...employee.toJson(),
+        'department_id': _selectedDepartmentId,
+        'shift_id': _selectedShiftId,
+        'role_in_project': _selectedRole,
+        'project_id': projectId == 0 ? null : projectId,
+        'block_id': blockId == 0 ? null : blockId,
+      }..removeWhere((k, v) => v == null);
+
       try {
-        await ApiService.createLabour(employee.toJson());
+        await ApiService.createLabour(body);
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('✅ Employee saved & uploaded to API')),
         );
       } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('⚠️ Saved locally but API failed: $e')),
         );
@@ -602,18 +661,17 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
 
       if (mounted) Navigator.pop(context, true);
     } finally {
-      if (mounted) setState(() => _saving = false); // Loader OFF
+      if (mounted) setState(() => _saving = false);
     }
   }
 
-
   /// Common input field
   Widget _buildInputField(
-      String label,
-      TextEditingController controller,
-      IconData icon, {
-        bool isRequired = true,
-      }) {
+    String label,
+    TextEditingController controller,
+    IconData icon, {
+    bool isRequired = true,
+  }) {
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(
@@ -623,14 +681,14 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
             style: const TextStyle(color: Colors.black, fontSize: 16),
             children: isRequired
                 ? const [
-              TextSpan(
-                text: ' *',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ]
+                    TextSpan(
+                      text: ' *',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ]
                 : [],
           ),
         ),
@@ -670,22 +728,20 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
 
   /// Date field
   Widget _buildDateField(
-      String label,
-      TextEditingController controller, {
-        bool isRequired = true,
-      }) {
+    String label,
+    TextEditingController controller, {
+    bool isRequired = true,
+  }) {
     return TextFormField(
       controller: controller,
       readOnly: true,
       onTap: () async {
         DateTime initialDate = DateTime.now();
 
-        // If the controller already has a date, try parsing it
         if (controller.text.isNotEmpty) {
           try {
             initialDate = DateFormat('yyyy-MM-dd').parse(controller.text);
           } catch (_) {
-            // If parsing fails, fallback to current date
             initialDate = DateTime.now();
           }
         }
@@ -709,14 +765,14 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
             style: const TextStyle(color: Colors.black, fontSize: 16),
             children: isRequired
                 ? const [
-              TextSpan(
-                text: ' *',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ]
+                    TextSpan(
+                      text: ' *',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ]
                 : [],
           ),
         ),
@@ -733,56 +789,29 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
   /// Finger button with 5-dot progress + opens enrollment dialog
   Widget _buildFinger(String fingerName) {
     final count = (fingerTemplates[fingerName] ?? const []).length;
-    final done = count >= 5;
+    final done = count >= 5; // one-sample enrollment
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: ElevatedButton(
         onPressed: () => _enrollFinger(fingerName),
         style: ElevatedButton.styleFrom(
-          minimumSize: const Size(140, 60), // increased height for 2 rows
+          minimumSize: const Size(140, 60),
           backgroundColor: done ? Colors.green : Colors.grey[300],
           foregroundColor: done ? Colors.white : Colors.black,
         ),
-        child: Column(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Top row: icon + finger name
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(done ? Icons.fingerprint : Icons.fingerprint_outlined, size: 18),
-                const SizedBox(width: 4),
-                Text(fingerName.split(' ').last),
-              ],
-            ),
-
-            const SizedBox(height: 6), // spacing between top and dots
-
-            // Bottom row: 5-dot progress
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                5,
-                    (i) => Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: i < count
-                        ? (done ? Colors.white : Colors.black)
-                        : Colors.black26,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            ),
+            Icon(done ? Icons.fingerprint : Icons.fingerprint_outlined,
+                size: 18),
+            const SizedBox(width: 6),
+            Text(fingerName.split(' ').last),
           ],
         ),
       ),
     );
   }
-
 
   Widget _buildFingerScanSection() {
     return Column(
@@ -845,7 +874,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
     return Scaffold(
       appBar: AppBar(
         title:
-        Text(widget.employee == null ? 'Create Employee' : 'Edit Employee'),
+            Text(widget.employee == null ? 'Create Employee' : 'Edit Employee'),
         backgroundColor: Colors.blueGrey,
       ),
       body: SingleChildScrollView(
@@ -860,6 +889,18 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
               constraints: const BoxConstraints(maxWidth: 1000),
               child: Column(
                 children: [
+                  if (_lookupError != null)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Text('Failed to load dropdowns: $_lookupError'),
+                    ),
                   GestureDetector(
                     onTap: _pickImage,
                     child: CircleAvatar(
@@ -870,7 +911,7 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                           : null,
                       child: _profileImage == null
                           ? const Icon(Icons.camera_alt,
-                          size: 40, color: Colors.white70)
+                              size: 40, color: Colors.white70)
                           : null,
                     ),
                   ),
@@ -886,19 +927,90 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                       _buildInputField(
                           'Employee Email', emailController, Icons.email,
                           isRequired: false),
-             //Employee ID Field
-                      // TextFormField(
-                      //   controller: codeController,
-                      //   readOnly: true,
-                      //   decoration: const InputDecoration(
-                      //     labelText: 'Employee ID (Auto)',
-                      //     prefixIcon: Icon(Icons.code),
-                      //     border: OutlineInputBorder(),
-                      //   ),
-                      // ),
+
                       _buildInputField(
                           'Employee NID', nidController, Icons.badge,
                           isRequired: false),
+
+                      // Department
+                      SizedBox(
+                        width: 340,
+                        child: _loadingLookups
+                            ? const _LookupFieldShell(label: 'Department')
+                            : DropdownButtonFormField<int>(
+                                value: _selectedDepartmentId,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'Department *',
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.apartment),
+                                ),
+                                items: _departments
+                                    .map((d) => DropdownMenuItem<int>(
+                                          value: d.id,
+                                          child: Text(d.name),
+                                        ))
+                                    .toList(),
+                                onChanged: (v) =>
+                                    setState(() => _selectedDepartmentId = v),
+                                validator: (v) =>
+                                    v == null ? 'Select Department' : null,
+                              ),
+                      ),
+
+                      // Shift
+                      SizedBox(
+                        width: 340,
+                        child: _loadingLookups
+                            ? const _LookupFieldShell(label: 'Shift')
+                            : DropdownButtonFormField<int>(
+                                value: _selectedShiftId,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'Shift *',
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.access_time),
+                                ),
+                                items: _shifts.map((s) {
+                                  final time =
+                                      (s.startTime != null && s.endTime != null)
+                                          ? ' (${s.startTime} – ${s.endTime})'
+                                          : '';
+                                  return DropdownMenuItem<int>(
+                                    value: s.id,
+                                    child: Text('${s.name}$time'),
+                                  );
+                                }).toList(),
+                                onChanged: (v) =>
+                                    setState(() => _selectedShiftId = v),
+                                validator: (v) =>
+                                    v == null ? 'Select Shift' : null,
+                              ),
+                      ),
+
+                      // ⬇ Role in Project dropdown (static options)
+                      SizedBox(
+                        width: 340,
+                        child: DropdownButtonFormField<String>(
+                          value: _selectedRole,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Role in Project *',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.security),
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                                value: 'supervisor', child: Text('Supervisor')),
+                            DropdownMenuItem(
+                                value: 'worker', child: Text('Worker')),
+                          ],
+                          onChanged: (v) => setState(() => _selectedRole = v),
+                          validator: (v) =>
+                              (v == null || v.isEmpty) ? 'Select Role' : null,
+                        ),
+                      ),
+
                       _buildInputField('Employee Daily Wages',
                           dailyWagesController, Icons.attach_money),
                       _buildInputFieldPhone(
@@ -922,9 +1034,11 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
                       onPressed: _saving ? null : _save,
                       icon: _saving
                           ? const SizedBox(
-                        height: 20, width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
                           : const Icon(Icons.save),
                       label: Text(_saving ? 'Saving...' : 'Save Employee'),
                       style: ElevatedButton.styleFrom(
@@ -937,6 +1051,33 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _LookupFieldShell extends StatelessWidget {
+  final String label;
+  const _LookupFieldShell({required this.label, Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        prefixIcon: const Icon(Icons.hourglass_empty),
+      ),
+      child: Row(
+        children: const [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: 10),
+          Text('Loading...'),
+        ],
       ),
     );
   }

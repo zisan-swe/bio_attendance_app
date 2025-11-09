@@ -1,7 +1,10 @@
+import 'package:biometric_attendance/screens/setting/shift_list_page.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../db/database_helper.dart';
 import '../../db/setting_seeder.dart';
 import 'company_settings_info.dart';
+import 'department_list_page.dart';
 import 'settings_list_page.dart';
 
 class SettingSeedingPage extends StatefulWidget {
@@ -96,6 +99,40 @@ class _SettingSeedingPageState extends State<SettingSeedingPage> {
                   : Text(_isSeeded ? "Settings Seeded" : "Seed Settings"),
               onPressed: _isSeeded || _isLoading ? null : _manualSeed,
             ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.apartment),
+              label: const Text("Department List"),
+              onPressed: () async {
+                // company_id from settings; fallback to 1 if missing
+                final setting = await DatabaseHelper.instance.getSettingBySlug('company_id');
+                final companyId = int.tryParse(setting?.value ?? '') ?? 1;
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => DepartmentListPage(companyId: companyId)),
+                );
+              },
+            ),
+
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.access_time),
+              label: const Text("Shift List"),
+              onPressed: () async {
+                final setting =
+                await DatabaseHelper.instance.getSettingBySlug('company_id');
+                final companyId = int.tryParse(setting?.value ?? '') ?? 1;
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ShiftListPage(companyId: companyId),
+                  ),
+                );
+              },
+            ),
+
             const SizedBox(height: 20),
             ElevatedButton.icon(
               icon: const Icon(Icons.settings_display_sharp),

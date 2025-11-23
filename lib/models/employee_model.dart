@@ -28,8 +28,8 @@ class EmployeeModel {
   final int? departmentId;
   final int? shiftId;
   final String? roleInProject; // "supervisor" | "worker"
-  final int? projectId;
-  final int? blockId;
+  final String? projectId;
+  final String? blockId;
 
   EmployeeModel({
     this.id,
@@ -93,8 +93,8 @@ class EmployeeModel {
       departmentId: map['department_id'] as int?,
       shiftId: map['shift_id'] as int?,
       roleInProject: map['role_in_project'] as String?,
-      projectId: map['project_id'] as int?,
-      blockId: map['block_id'] as int?,
+      projectId: map['project_id'] as String?,
+      blockId: map['block_id'] as String?,
     );
   }
 

@@ -211,8 +211,8 @@ class _AttendancePageState extends State<AttendancePage> {
 
     final attendance = AttendanceModel(
       deviceId: 'Device001',
-      projectId: int.tryParse(projectId?.value ?? '0') ?? 0,
-      blockId: int.tryParse(blockId?.value ?? '0') ?? 0,
+      projectId: projectId?.value ?? '',   // 🔥 now String
+      blockId: blockId?.value ?? '',       // 🔥 now String
       employeeNo: employee.employeeNo,
       workingDate: date,
       attendanceStatus: selectedAction,

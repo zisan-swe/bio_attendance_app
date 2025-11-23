@@ -28,7 +28,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 17,
+      version: 18,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -66,8 +66,8 @@ class DatabaseHelper {
         department_id INTEGER,
         shift_id INTEGER,
         role_in_project TEXT,   -- "supervisor" | "worker"
-        project_id INTEGER,
-        block_id INTEGER
+        project_id TEXT,
+        block_id TEXT
         
       )
     ''');
@@ -120,8 +120,8 @@ class DatabaseHelper {
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     dev.log('🛠 Upgrading DB from $oldVersion to $newVersion', name: 'DatabaseHelper');
 
-    // Add company_settings table when upgrading from versions <16
-    if (oldVersion < 16) {
+    // Add company_settings table when upgrading from versions <18
+    if (oldVersion < 18) {
       await db.execute('''
         CREATE TABLE IF NOT EXISTS company_settings (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -191,9 +191,69 @@ class DatabaseHelper {
       await addCol('department_id', 'INTEGER');
       await addCol('shift_id', 'INTEGER');
       await addCol('role_in_project', 'TEXT');
-      await addCol('project_id', 'INTEGER');
-      await addCol('block_id', 'INTEGER');
+      await addCol('project_id', 'TEXT');
+      await addCol('block_id', 'TEXT');
     }
+
+    if (oldVersion < 18) {
+      await db.execute('ALTER TABLE employee RENAME TO employee_old');
+
+      await db.execute('''
+    CREATE TABLE employee (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT,
+      employee_no TEXT NOT NULL,
+      nid TEXT,
+      daily_wages DOUBLE,
+      phone TEXT,
+      father_name TEXT,
+      mother_name TEXT,
+      dob TEXT,
+      joining_date TEXT,
+      employee_type TEXT NOT NULL,
+      company_id INTEGER NOT NULL,
+      finger_info1 TEXT,
+      finger_info2 TEXT,
+      finger_info3 TEXT,
+      finger_info4 TEXT,
+      finger_info5 TEXT,
+      finger_info6 TEXT,
+      finger_info7 TEXT,
+      finger_info8 TEXT,
+      finger_info9 TEXT,
+      finger_info10 TEXT,
+      image_path TEXT,
+      department_id INTEGER,
+      shift_id INTEGER,
+      role_in_project TEXT,
+      project_id TEXT,
+      block_id TEXT
+    )
+  ''');
+
+      await db.execute('''
+    INSERT INTO employee (
+      id, name, email, employee_no, nid, daily_wages, phone,
+      father_name, mother_name, dob, joining_date, employee_type,
+      company_id, finger_info1, finger_info2, finger_info3, finger_info4,
+      finger_info5, finger_info6, finger_info7, finger_info8, finger_info9,
+      finger_info10, image_path, department_id, shift_id, role_in_project,
+      project_id, block_id
+    )
+    SELECT
+      id, name, email, employee_no, nid, daily_wages, phone,
+      father_name, mother_name, dob, joining_date, employee_type,
+      company_id, finger_info1, finger_info2, finger_info3, finger_info4,
+      finger_info5, finger_info6, finger_info7, finger_info8, finger_info9,
+      finger_info10, image_path, department_id, shift_id, role_in_project,
+      project_id, block_id
+    FROM employee_old
+  ''');
+
+      await db.execute('DROP TABLE employee_old');
+    }
+
 
   }
 

@@ -73,7 +73,7 @@ class _WorkerPageState extends State<WorkerPage> {
       final blockSetting = await DatabaseHelper.instance.getSettingBySlug('block_id');
 
       final String projectId = projectSetting?.value ?? "0"; // default fallback
-      final int blockId = int.tryParse(blockSetting?.value ?? "0") ?? 0;
+      final String blockId = blockSetting?.value ?? "0";
 
       print("⚙️ Using Project Code: $projectId, Block ID: $blockId");
 
@@ -123,7 +123,7 @@ class _WorkerPageState extends State<WorkerPage> {
       final blockSetting = await DatabaseHelper.instance.getSettingBySlug('block_id');
 
       final String projectId = projectSetting?.value ?? "0";
-      final int blockId = int.tryParse(blockSetting?.value ?? "0") ?? 0;
+      final String blockId = blockSetting?.value ?? "0";
 
       debugPrint("📥 Fetching attendance for Project: $projectId, Block: $blockId");
 

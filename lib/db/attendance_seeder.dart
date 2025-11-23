@@ -12,8 +12,8 @@ class AttendanceSeeder {
       AttendanceModel(
         id: 1,
         deviceId: "DEV001",
-        projectId: 101,
-        blockId: 1,
+        projectId: "101",
+        blockId: "1",
         employeeNo: "EMP001",
         workingDate: now.toIso8601String().split("T").first,
         attendanceStatus: "Employee1",
@@ -30,8 +30,8 @@ class AttendanceSeeder {
       AttendanceModel(
         id: 2,
         deviceId: "DEV001",
-        projectId: 101,
-        blockId: 2,
+        projectId: "101",
+        blockId: "2",
         employeeNo: "EMP002",
         workingDate: now.toIso8601String().split("T").first,
         attendanceStatus: "Hasan",
@@ -48,8 +48,8 @@ class AttendanceSeeder {
       AttendanceModel(
         id: 3,
         deviceId: "DEV002",
-        projectId: 102,
-        blockId: 1,
+        projectId: "102",
+        blockId: "1",
         employeeNo: "EMP003",
         workingDate: now.toIso8601String().split("T").first,
         attendanceStatus: "Empolyee2",

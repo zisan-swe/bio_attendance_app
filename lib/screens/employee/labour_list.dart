@@ -22,7 +22,7 @@ class _EmployeeListPageState extends State<EmployeeListPage> {
 
   Future<void> _loadEmployees() async {
     setState(() => _isLoading = true);
-    final list = await ApiService.fetchEmployees(code: "01", blockId: 1);
+    final list = await ApiService.fetchEmployees(code: "01", blockId: "1");
     setState(() {
       _employees = list;
       _isLoading = false;

@@ -590,8 +590,9 @@ class _EmployeeCreatePageState extends State<EmployeeCreatePage> {
           await DatabaseHelper.instance.getSettingBySlug('project_id');
       final blockSetting =
           await DatabaseHelper.instance.getSettingBySlug('block_id');
-      final int projectId = int.tryParse(projectSetting?.value ?? '') ?? 0;
-      final int blockId = int.tryParse(blockSetting?.value ?? '') ?? 0;
+      final String projectId = projectSetting?.value ?? '';
+      final String blockId = blockSetting?.value ?? '';
+
 
       String enc(String key) => jsonEncode(fingerTemplates[key] ?? const []);
 

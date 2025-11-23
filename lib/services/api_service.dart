@@ -87,7 +87,7 @@ class ApiService {
   /// --- Fetch Employee / Labour List (POST first, fallback to GET) ---
   static Future<List<EmployeeModel>> fetchEmployees({
     required String code,
-    required int blockId,
+    required String blockId,
     int? page, // optional if your API supports pagination
   }) async {
     final postUrl = Uri.parse("$baseUrl/labour-list");

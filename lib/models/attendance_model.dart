@@ -1,8 +1,8 @@
 class AttendanceModel {
   final int? id; // ✅ Nullable (SQLite auto-increment ID)
   final String deviceId;
-  final int projectId;
-  final int blockId;
+  final String projectId;
+  final String blockId;
   final String employeeNo;
   final String workingDate;
   final String attendanceStatus; // Check In, Check Out, Break In, Break Out
@@ -39,8 +39,8 @@ class AttendanceModel {
   AttendanceModel copyWith({
     int? id,
     String? deviceId,
-    int? projectId,
-    int? blockId,
+    String? projectId,
+    String? blockId,
     String? employeeNo,
     String? workingDate,
     String? attendanceStatus,
@@ -109,8 +109,8 @@ class AttendanceModel {
     return AttendanceModel(
       id: map['id'] != null ? int.tryParse(map['id'].toString()) : null,
       deviceId: map['device_id']?.toString() ?? '',
-      projectId: int.tryParse(map['project_id'].toString()) ?? 0,
-      blockId: int.tryParse(map['block_id'].toString()) ?? 0,
+      projectId: map['project_id']?.toString() ?? '', // updated
+      blockId: map['block_id']?.toString() ?? '',     // updated
       employeeNo: map['employee_no']?.toString() ?? '',
       workingDate: map['working_date']?.toString() ?? '',
       attendanceStatus: map['attendance_status']?.toString() ?? '',

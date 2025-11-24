@@ -345,6 +345,27 @@ class DatabaseHelper {
     );
   }
 
+
+  Future<List<AttendanceModel>> getAttendanceByDate(String ymd) async {
+    final db = await database;
+    final result = await db.query(
+      'attendance',
+      where: 'working_date = ?',
+      whereArgs: [ymd],
+      orderBy: 'create_at DESC',
+    );
+    return result.map((e) => AttendanceModel.fromMap(e)).toList();
+  }
+
+  Future<int> countAttendanceByDate(String ymd) async {
+    final db = await database;
+    final x = Sqflite.firstIntValue(await db.rawQuery(
+      'SELECT COUNT(*) FROM attendance WHERE working_date = ?',
+      [ymd],
+    ));
+    return x ?? 0;
+  }
+
   // ---------------- Fingerprint matching (supports JSON lists) ----------------
   /// Looks for a match of [scannedTemplate] in any employee's stored templates.
   /// Each finger_infoX can be:

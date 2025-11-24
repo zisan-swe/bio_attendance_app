@@ -266,6 +266,9 @@ class EmployeeModel {
     String? imagePath,
     int? departmentId,
     int? shiftId,
+    String? roleInProject,
+    String? projectId,
+    String? blockId,
   }) {
     return EmployeeModel(
       id: id ?? this.id,
@@ -294,6 +297,10 @@ class EmployeeModel {
       imagePath: imagePath ?? this.imagePath,
       departmentId: departmentId ?? this.departmentId,
       shiftId: shiftId ?? this.shiftId,
+      roleInProject: roleInProject ?? this.roleInProject,
+      projectId: projectId ?? this.projectId,       // এখানে
+      blockId: blockId ?? this.blockId,             // এখানে
+
     );
   }
 }

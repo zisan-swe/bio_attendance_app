@@ -19,7 +19,7 @@ class AttendanceProvider with ChangeNotifier {
   static final _timeLogFormat = DateFormat('HH:mm:ss');
   static final _dateLogFormat = DateFormat('yyyy-MM-dd');
 
-  /// Insert a new attendance record
+// ====================== INSERT ======================
   Future<int> insertAttendance(AttendanceModel attendance) async {
     try {
       final db = await dbHelper.database;
@@ -64,7 +64,7 @@ class AttendanceProvider with ChangeNotifier {
 
 
 
-  // Fetch all attendance records
+// ====================== FETCH ALL ======================
   Future<List<AttendanceModel>> getAllAttendance({String? query}) async {
     try {
       final allData = await dbHelper.getAllAttendance();
@@ -142,7 +142,7 @@ class AttendanceProvider with ChangeNotifier {
     }
   }
 
-  /// Update an attendance record by ID
+// ====================== UPDATE & DELETE ======================
   Future<int> updateAttendance(AttendanceModel attendance) async {
     try {
       final db = await dbHelper.database;
@@ -291,7 +291,7 @@ class AttendanceProvider with ChangeNotifier {
       return {};
     }
   }
-  /// Helper to get an employee by fingerprint
+// ====================== FINGERPRINT HELPERS ======================
   Future<EmployeeModel?> getEmployeeByFingerprint(String scannedTemplate) async {
     try {
       return await dbHelper.getEmployeeByFingerprint(scannedTemplate, threshold: 70.0);
@@ -302,55 +302,89 @@ class AttendanceProvider with ChangeNotifier {
   }
 
 
-  // ---------------- Auto Synced ----------------
+// ====================== AUTO SYNC SYSTEM (সবচেয়ে গুরুত্বপূর্ণ) ======================
+
+  /// পেন্ডিং অ্যাটেনডেন্সের সংখ্যা
   Future<int> countPendingUnsynced() async {
     try {
       final db = await dbHelper.database;
-      final res = await db.query(
-        _attendanceTable,
-        where: 'synced = ?',
-        whereArgs: [0],
+      final result = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM $_attendanceTable WHERE synced = 0 OR synced IS NULL',
       );
-      return res.length;
+      return Sqflite.firstIntValue(result) ?? 0;
     } catch (_) {
       return 0;
     }
   }
 
+  /// মূল সিঙ্ক ফাংশন — অটোমেটিক রিট্রাই + স্মার্ট হ্যান্ডলিং
   Future<int> syncPendingAttendance() async {
     final db = await dbHelper.database;
-    final pending = await db.query(
+    final pendingRows = await db.query(
       _attendanceTable,
-      where: 'synced = ?',
-      whereArgs: [0],
-      orderBy: 'id ASC',
+      where: 'synced = 0 OR synced IS NULL',
+      orderBy: 'id ASC', // পুরোনো থেকে নতুন
     );
 
-    int success = 0;
-    for (final row in pending) {
-      final model = AttendanceModel.fromMap(row);
+    if (pendingRows.isEmpty) {
+      debugPrint("No pending attendance to sync");
+      return 0;
+    }
+
+    int successCount = 0;
+    int failCount = 0;
+
+    for (final row in pendingRows) {
+      final attendance = AttendanceModel.fromMap(row);
+
       try {
-        final message = await ApiService.createAttendance(model);
-        final ok = message.toLowerCase().contains('success');
-        if (ok) {
+        final message = await ApiService.createAttendance(attendance);
+
+        // সফল হলে (বিভিন্ন ধরনের রেসপন্স হ্যান্ডল করা হয়েছে)
+        final isSuccess = message.toLowerCase().contains('success') ||
+            message.toLowerCase().contains('already') ||
+            message.toLowerCase().contains('synced') ||
+            message.contains('200') ||
+            message.contains('201');
+
+        if (isSuccess) {
           await db.update(
             _attendanceTable,
-            model.copyWith(synced: 1).toMap(),
+            attendance.copyWith(synced: 1).toMap(),
             where: 'id = ?',
-            whereArgs: [model.id],
-            conflictAlgorithm: ConflictAlgorithm.replace,
+            whereArgs: [attendance.id],
           );
-          success++;
+          successCount++;
+          debugPrint("Synced: ${attendance.employeeNo} - ${attendance.workingDate}");
+        } else {
+          debugPrint("Server rejected (will retry): ${attendance.employeeNo} → $message");
+          failCount++;
         }
       } on SocketException {
-
+        // ইন্টারনেট নেই → বাকি সব বন্ধ করো, পরে আবার চেষ্টা হবে
+        debugPrint("No internet – stopping sync. Remaining: ${pendingRows.length - successCount - failCount}");
         break;
-      } catch (_) {
+      } catch (e) {
+        debugPrint("Sync error (retry later): ${attendance.employeeNo} → $e");
+        failCount++;
       }
     }
 
-    if (success > 0) notifyListeners();
-    return success;
+    debugPrint("Sync Complete: $successCount synced, $failCount pending");
+
+    if (successCount > 0) {
+      notifyListeners(); // UI আপডেট (যেমন ব্যাজ কমবে)
+    }
+
+    return successCount;
   }
+
+  /// এক ক্লিকে সিঙ্ক (ম্যানুয়াল)
+  Future<void> forceSyncNow() async {
+    debugPrint("Manual sync started...");
+    final synced = await syncPendingAttendance();
+    debugPrint("Manual sync done: $synced records synced");
+  }
+
 
 }

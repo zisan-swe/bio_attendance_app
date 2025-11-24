@@ -242,7 +242,7 @@ class _CompanySettingsInfoPageState extends State<CompanySettingsInfoPage> {
                                 textInputAction: TextInputAction.next,
                                 onFieldSubmitted: (_) => _userNode.requestFocus(),
                                 decoration: const InputDecoration(
-                                  labelText: 'Branch ID',
+                                  labelText: 'Plot ID',
                                   hintText: 'e.g., 1',
                                   prefixIcon: Icon(Icons.account_tree),
                                   border: OutlineInputBorder(),
@@ -263,7 +263,7 @@ class _CompanySettingsInfoPageState extends State<CompanySettingsInfoPage> {
                                 textInputAction: TextInputAction.done,
                                 onFieldSubmitted: (_) => _save(),
                                 decoration: const InputDecoration(
-                                  labelText: 'User',
+                                  labelText: 'Supervisor',
                                   prefixIcon: Icon(Icons.person_outline),
                                   border: OutlineInputBorder(),
                                 ),

@@ -48,42 +48,92 @@ class _WorkerPageState extends State<WorkerPage> {
         debugPrint("API fetch failed: $e");
       }
 
+      final db = await DatabaseHelper.instance.database;
+
+      // 🔹 আগে লোকাল employee গুলো তুলে নিই (এই project + block এর)
+      final existingRows = await db.query(
+        'employee',
+        where: 'project_id = ? AND block_id = ?',
+        whereArgs: [projectId, blockId],
+      );
+
+      final Map<String, EmployeeModel> existingByEmpNo = {
+        for (final row in existingRows)
+          EmployeeModel.fromMap(row).employeeNo: EmployeeModel.fromMap(row),
+      };
+
       List<EmployeeModel> employeesToShow = [];
 
       if (apiEmployees.isNotEmpty) {
-        // API থেকে ডেটা পেলে → লোকালে পুরোনো ডেটা মুছে নতুনগুলো সেভ করো
-        final db = await DatabaseHelper.instance.database;
-
+        // 🔥 পুরোনো ডেটা ডিলিট করার আগে উপরের ম্যাপে রেখে দিয়েছি
         await db.delete(
           'employee',
           where: 'project_id = ? AND block_id = ?',
           whereArgs: [projectId, blockId],
         );
 
-        for (var emp in apiEmployees) {
-          final employeeToSave = emp.copyWith(
+        for (final emp in apiEmployees) {
+          final oldLocal = existingByEmpNo[emp.employeeNo];
+
+          // 🔥 Merge: API + Local (finger info গুলো যাতে না হারায়)
+          final merged = emp.copyWith(
+            id: oldLocal?.id, // আগের row থাকলে তার id রাখি
             employeeType: employeeType,
             projectId: projectId,
             blockId: blockId,
-            imagePath: emp.imagePath.isNotEmpty ? emp.imagePath : '',
-          );
-          await DatabaseHelper.instance.insertEmployee(employeeToSave);
-        }
+            imagePath: emp.imagePath.isNotEmpty
+                ? emp.imagePath
+                : (oldLocal?.imagePath ?? ''),
 
-        employeesToShow = apiEmployees;
+            // 🔥 Finger templates: APIতে থাকলে API, নাহলে local
+            fingerInfo1: emp.fingerInfo1.isNotEmpty
+                ? emp.fingerInfo1
+                : (oldLocal?.fingerInfo1 ?? ''),
+            fingerInfo2: emp.fingerInfo2.isNotEmpty
+                ? emp.fingerInfo2
+                : (oldLocal?.fingerInfo2 ?? ''),
+            fingerInfo3: emp.fingerInfo3.isNotEmpty
+                ? emp.fingerInfo3
+                : (oldLocal?.fingerInfo3 ?? ''),
+            fingerInfo4: emp.fingerInfo4.isNotEmpty
+                ? emp.fingerInfo4
+                : (oldLocal?.fingerInfo4 ?? ''),
+            fingerInfo5: emp.fingerInfo5.isNotEmpty
+                ? emp.fingerInfo5
+                : (oldLocal?.fingerInfo5 ?? ''),
+            fingerInfo6: emp.fingerInfo6.isNotEmpty
+                ? emp.fingerInfo6
+                : (oldLocal?.fingerInfo6 ?? ''),
+            fingerInfo7: emp.fingerInfo7.isNotEmpty
+                ? emp.fingerInfo7
+                : (oldLocal?.fingerInfo7 ?? ''),
+            fingerInfo8: emp.fingerInfo8.isNotEmpty
+                ? emp.fingerInfo8
+                : (oldLocal?.fingerInfo8 ?? ''),
+            fingerInfo9: emp.fingerInfo9.isNotEmpty
+                ? emp.fingerInfo9
+                : (oldLocal?.fingerInfo9 ?? ''),
+            fingerInfo10: emp.fingerInfo10.isNotEmpty
+                ? emp.fingerInfo10
+                : (oldLocal?.fingerInfo10 ?? ''),
+          );
+
+          await DatabaseHelper.instance.insertEmployee(merged);
+          employeesToShow.add(merged);
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text("Sync complete! ${apiEmployees.length} employees loaded"),
-              // content: Text("সিঙ্ক সম্পন্ন! ${apiEmployees.length} জন কর্মী লোড হয়েছে"),
+              content: Text("Sync complete! ${employeesToShow.length} employees loaded"),
               backgroundColor: Colors.green,
             ),
           );
         }
       } else {
         // অফলাইন বা API ফেল → লোকাল ডেটা দেখাও
-        employeesToShow = await DatabaseHelper.instance.getAllEmployees(employeeType: employeeType);
+        employeesToShow = await DatabaseHelper.instance
+            .getAllEmployees(employeeType: employeeType);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

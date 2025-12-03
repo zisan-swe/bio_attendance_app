@@ -263,7 +263,8 @@ class AttendanceProvider with ChangeNotifier {
         try {
           final j = jsonDecode(s);
           if (j is List) {
-            return j.map((e) => (e ?? '').toString())
+            return j
+                .map((e) => (e ?? '').toString())
                 .where((e) => e.isNotEmpty)
                 .toList();
           }
@@ -274,16 +275,18 @@ class AttendanceProvider with ChangeNotifier {
       }
 
       final map = result.first;
+
+      // 🔥 EmployeeModel.fingerprints getter-এর মত same mapping রাখছি
       return {
-        'Left Thumb':  _decode(map['finger_info1']),
-        'Left Index':  _decode(map['finger_info2']),
-        'Left Middle': _decode(map['finger_info3']),
-        'Left Ring':   _decode(map['finger_info4']),
-        'Left Little': _decode(map['finger_info5']),
-        'Right Thumb': _decode(map['finger_info6']),
-        'Right Index': _decode(map['finger_info7']),
-        'Right Middle':_decode(map['finger_info8']),
-        'Right Ring':  _decode(map['finger_info9']),
+        'Left Thumb' : _decode(map['finger_info1']),
+        'Right Thumb': _decode(map['finger_info2']),
+        'Left Index' : _decode(map['finger_info3']),
+        'Right Index': _decode(map['finger_info4']),
+        'Left Middle': _decode(map['finger_info5']),
+        'Right Middle': _decode(map['finger_info6']),
+        'Left Ring'  : _decode(map['finger_info7']),
+        'Right Ring' : _decode(map['finger_info8']),
+        'Left Little': _decode(map['finger_info9']),
         'Right Little':_decode(map['finger_info10']),
       };
     } catch (e, stack) {

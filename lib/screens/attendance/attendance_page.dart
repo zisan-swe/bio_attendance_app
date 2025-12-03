@@ -69,29 +69,111 @@ class _AttendancePageState extends State<AttendancePage> {
     if (mounted) setState(() => _pending = n);
   }
 
+  // void _listenConnectivity() {
+  //   _connSub = Connectivity()
+  //       .onConnectivityChanged
+  //       .listen((List<ConnectivityResult> results) async {
+  //     final online = results.any(
+  //           (r) => r == ConnectivityResult.mobile || r == ConnectivityResult.wifi,
+  //     );
+  //     if (!online) return;
+  //
+  //     // throttle auto-sync attempts
+  //     if (DateTime.now().isBefore(_nextAutoSyncAllowed)) return;
+  //     _nextAutoSyncAllowed = DateTime.now().add(const Duration(seconds: 10));
+  //
+  //     final synced =
+  //     await context.read<AttendanceProvider>().syncPendingAttendance();
+  //     if (!mounted) return;
+  //     await _refreshPending();
+  //     if (synced > 0) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(content: Text('✅ Auto-synced $synced record(s)')),
+  //       );
+  //     }
+  //   });
+  // }
+
+
   void _listenConnectivity() {
-    _connSub = Connectivity()
-        .onConnectivityChanged
-        .listen((List<ConnectivityResult> results) async {
+    final connectivity = Connectivity();
+
+    // 🔹 প্রথমে initial connectivity check করি
+    connectivity.checkConnectivity().then((List<ConnectivityResult> results) async {
       final online = results.any(
-            (r) => r == ConnectivityResult.mobile || r == ConnectivityResult.wifi,
+            (r) =>
+        r == ConnectivityResult.mobile ||
+            r == ConnectivityResult.wifi ||
+            r == ConnectivityResult.ethernet,
       );
       if (!online) return;
 
-      // throttle auto-sync attempts
+      // throttle
       if (DateTime.now().isBefore(_nextAutoSyncAllowed)) return;
       _nextAutoSyncAllowed = DateTime.now().add(const Duration(seconds: 10));
+
+      final pending =
+      await context.read<AttendanceProvider>().countPendingUnsynced();
+      if (pending == 0) return;
 
       final synced =
       await context.read<AttendanceProvider>().syncPendingAttendance();
       if (!mounted) return;
       await _refreshPending();
+
       if (synced > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('✅ Auto-synced $synced record(s)')),
+          SnackBar(content: Text('✅ Auto-synced $synced record(s) (initial)')),
         );
       }
+    }).catchError((e) {
+      debugPrint('⚠️ Error in initial connectivity check: $e');
     });
+
+    // 🔹 এরপর connectivity change listen করি
+    _connSub = connectivity.onConnectivityChanged.listen(
+          (List<ConnectivityResult> results) async {
+        final online = results.any(
+              (r) =>
+          r == ConnectivityResult.mobile ||
+              r == ConnectivityResult.wifi ||
+              r == ConnectivityResult.ethernet,
+        );
+
+        if (!online) {
+          debugPrint('📴 Connectivity changed → offline');
+          return;
+        }
+
+        debugPrint('📶 Connectivity changed → online');
+
+        // throttle auto-sync attempts
+        if (DateTime.now().isBefore(_nextAutoSyncAllowed)) {
+          debugPrint('⏳ Auto-sync throttled, skipping this event');
+          return;
+        }
+        _nextAutoSyncAllowed =
+            DateTime.now().add(const Duration(seconds: 10));
+
+        final pending =
+        await context.read<AttendanceProvider>().countPendingUnsynced();
+        debugPrint('🔍 Pending attendance to sync: $pending');
+
+        if (pending == 0) return;
+
+        final synced =
+        await context.read<AttendanceProvider>().syncPendingAttendance();
+        if (!mounted) return;
+        await _refreshPending();
+        if (synced > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('✅ Auto-synced $synced record(s)')),
+          );
+        } else {
+          debugPrint('⚠️ Auto-sync tried but no record marked as success');
+        }
+      },
+    );
   }
 
   Future<String> _detectFingerLabel({
